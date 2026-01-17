@@ -1,0 +1,24 @@
+// =============================================================================
+// Custom Schema - Your Application Models
+// =============================================================================
+// Add your custom models here. This file is preserved during `chat-saas-server db:sync`.
+//
+// You can:
+// - Add new models
+// - Add relations to core models (use the model name, Prisma will find it in base.prisma)
+//
+// Example:
+//
+// model BlogPost {
+//   id        String   @id @default(cuid())
+//   title     String
+//   content   String
+//   authorId  String
+//   author    User     @relation(fields: [authorId], references: [id])
+//   createdAt DateTime @default(now())
+// }
+//
+// Note: If you add a relation to a core model (like User above), you may need to
+// add the opposite relation field to that model in base.prisma. After running
+// db:sync, check for validation errors and add any missing relation fields.
+// =============================================================================

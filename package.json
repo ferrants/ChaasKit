@@ -1,0 +1,38 @@
+{
+  "name": "chaaskit-monorepo",
+  "version": "0.1.0",
+  "private": true,
+  "description": "A configurable, production-ready AI Chat SaaS template",
+  "license": "MIT",
+  "author": "Matt Ferrante <@ferrants>",
+  "homepage": "https://chaaskit.com",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ferrants/chaaskit.git"
+  },
+  "bugs": {
+    "url": "https://github.com/ferrants/chaaskit/issues"
+  },
+  "scripts": {
+    "dev": "concurrently -n server,client -c blue,green \"pnpm --filter @chaaskit/server dev\" \"pnpm --filter @chaaskit/client dev\"",
+    "build": "pnpm -r build",
+    "db:generate": "pnpm --filter @chaaskit/db generate",
+    "db:push": "pnpm --filter @chaaskit/db push",
+    "db:migrate": "pnpm --filter @chaaskit/db migrate",
+    "db:studio": "pnpm --filter @chaaskit/db studio",
+    "lint": "pnpm -r lint",
+    "typecheck": "pnpm -r typecheck",
+    "clean": "pnpm -r clean && rm -rf node_modules",
+    "pack:local": "./scripts/pack-local.sh",
+    "queue-worker": "tsx packages/server/src/queue/cli.ts"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2",
+    "typescript": "^5.3.3"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "pnpm": ">=8.0.0"
+  },
+  "packageManager": "pnpm@8.15.0"
+}

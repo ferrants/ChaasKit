@@ -1,0 +1,93 @@
+{
+  "name": "@chaaskit/server",
+  "version": "0.1.0",
+  "description": "Express.js backend server for ChaasKit AI chat applications",
+  "license": "MIT",
+  "author": "Matt Ferrante <@ferrants>",
+  "homepage": "https://chaaskit.com",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ferrants/chaaskit.git",
+    "directory": "packages/server"
+  },
+  "bugs": {
+    "url": "https://github.com/ferrants/chaaskit/issues"
+  },
+  "keywords": ["chaaskit", "ai", "chat", "saas", "server", "express", "anthropic", "openai"],
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./loaders": {
+      "types": "./dist/loaders/index.d.ts",
+      "import": "./dist/loaders/index.js"
+    }
+  },
+  "bin": {
+    "chaaskit-server": "./dist/bin/cli.js",
+    "chaaskit-worker": "./dist/queue/cli.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx watch --clear-screen=false --watch=../../config --watch=src src/bin/cli.ts",
+    "start": "node dist/bin/cli.js",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.71.0",
+    "@chaaskit/db": "^0.1.0",
+    "@chaaskit/shared": "^0.1.0",
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "bcryptjs": "^2.4.3",
+    "cookie-parser": "^1.4.6",
+    "cors": "^2.8.5",
+    "cron-parser": "^5.5.0",
+    "dotenv": "^16.4.1",
+    "express": "^4.18.2",
+    "express-rate-limit": "^7.1.5",
+    "helmet": "^7.1.0",
+    "jiti": "^2.4.0",
+    "jsonwebtoken": "^9.0.2",
+    "multer": "^1.4.5-lts.1",
+    "openai": "^4.28.0",
+    "passport": "^0.7.0",
+    "passport-github2": "^0.1.12",
+    "passport-google-oauth20": "^2.0.0",
+    "passport-local": "^1.0.0",
+    "stripe": "^14.14.0",
+    "uuid": "^9.0.1",
+    "zod": "^3.22.4"
+  },
+  "peerDependencies": {
+    "@aws-sdk/client-sqs": "^3.0.0"
+  },
+  "peerDependenciesMeta": {
+    "@aws-sdk/client-sqs": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@aws-sdk/client-sqs": "^3.0.0",
+    "@types/bcryptjs": "^2.4.6",
+    "@types/cookie-parser": "^1.4.6",
+    "@types/cors": "^2.8.17",
+    "@types/express": "^4.17.21",
+    "@types/jsonwebtoken": "^9.0.5",
+    "@types/multer": "^1.4.11",
+    "@types/passport": "^1.0.16",
+    "@types/passport-github2": "^1.2.9",
+    "@types/passport-google-oauth20": "^2.0.14",
+    "@types/passport-local": "^1.0.38",
+    "@types/uuid": "^9.0.8",
+    "tsx": "^4.7.0",
+    "typescript": "^5.3.3"
+  }
+}

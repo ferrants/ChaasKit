@@ -1,0 +1,13 @@
+{
+  "name": "@chaaskit/config",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./app.config.ts",
+  "exports": {
+    ".": "./app.config.ts"
+  },
+  "dependencies": {
+    "@chaaskit/shared": "workspace:*"
+  }
+}

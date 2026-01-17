@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      padding: 16px;
+      /* Background is injected by generateOpenAiScript based on theme */
+    }
+
+    .card {
+      border-radius: 12px;
+      padding: 20px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      max-width: 360px;
+    }
+
+    .card.dark {
+      background: linear-gradient(135deg, #434343 0%, #000000 100%);
+    }
+
+    .plan-name {
+      font-size: 24px;
+      font-weight: 700;
+      margin-bottom: 4px;
+    }
+
+    .plan-type {
+      font-size: 14px;
+      opacity: 0.8;
+      margin-bottom: 16px;
+    }
+
+    .usage-section {
+      background: rgba(255, 255, 255, 0.15);
+      border-radius: 8px;
+      padding: 12px;
+      margin-bottom: 12px;
+    }
+
+    .usage-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+
+    .usage-label {
+      font-size: 13px;
+      font-weight: 500;
+    }
+
+    .usage-count {
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    .progress-bar {
+      height: 8px;
+      background: rgba(255, 255, 255, 0.3);
+      border-radius: 4px;
+      overflow: hidden;
+    }
+
+    .progress-fill {
+      height: 100%;
+      background: white;
+      border-radius: 4px;
+      transition: width 0.3s ease;
+    }
+
+    .progress-fill.warning {
+      background: #fbbf24;
+    }
+
+    .progress-fill.danger {
+      background: #ef4444;
+    }
+
+    .credits-section {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding-top: 8px;
+    }
+
+    .credits-label {
+      font-size: 13px;
+      opacity: 0.9;
+    }
+
+    .credits-value {
+      font-size: 18px;
+      font-weight: 700;
+    }
+
+    .unlimited {
+      font-size: 14px;
+      opacity: 0.9;
+    }
+
+    .reset-info {
+      font-size: 12px;
+      opacity: 0.7;
+      margin-top: 12px;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <div id="card" class="card">
+    <div id="plan-name" class="plan-name">Loading...</div>
+    <div id="plan-type" class="plan-type"></div>
+
+    <div class="usage-section">
+      <div class="usage-header">
+        <span class="usage-label">Messages this period</span>
+        <span id="usage-count" class="usage-count">-</span>
+      </div>
+      <div class="progress-bar">
+        <div id="progress-fill" class="progress-fill" style="width: 0%"></div>
+      </div>
+    </div>
+
+    <div class="credits-section">
+      <span class="credits-label">Available credits</span>
+      <span id="credits-value" class="credits-value">-</span>
+    </div>
+
+    <div id="reset-info" class="reset-info"></div>
+  </div>
+
+  <script>
+    (function() {
+      const data = window.openai?.toolOutput || {};
+      const theme = window.openai?.theme || 'light';
+
+      const card = document.getElementById('card');
+      const planName = document.getElementById('plan-name');
+      const planType = document.getElementById('plan-type');
+      const usageCount = document.getElementById('usage-count');
+      const progressFill = document.getElementById('progress-fill');
+      const creditsValue = document.getElementById('credits-value');
+      const resetInfo = document.getElementById('reset-info');
+
+      // Apply theme to card
+      if (theme === 'dark') {
+        card.classList.add('dark');
+      }
+
+      // Set plan name and type
+      planName.textContent = data.planName || 'Unknown Plan';
+      planType.textContent = data.billingContext === 'team' ? 'Team Plan' : 'Personal Plan';
+
+      // Set usage
+      const used = data.messagesUsed || 0;
+      const limit = data.messageLimit;
+
+      if (limit === null || limit === undefined || limit === -1) {
+        usageCount.textContent = `${used} used`;
+        progressFill.style.width = '0%';
+      } else {
+        usageCount.textContent = `${used} / ${limit}`;
+        const percentage = Math.min((used / limit) * 100, 100);
+        progressFill.style.width = percentage + '%';
+
+        if (percentage >= 90) {
+          progressFill.classList.add('danger');
+        } else if (percentage >= 75) {
+          progressFill.classList.add('warning');
+        }
+      }
+
+      // Set credits
+      const credits = data.credits;
+      if (credits === null || credits === undefined || credits === -1) {
+        creditsValue.innerHTML = '<span class="unlimited">Unlimited</span>';
+      } else {
+        creditsValue.textContent = credits.toLocaleString();
+      }
+
+      // Set reset info
+      if (data.periodEnd) {
+        const resetDate = new Date(data.periodEnd);
+        resetInfo.textContent = `Resets ${resetDate.toLocaleDateString()}`;
+      }
+    })();
+  </script>
+</body>
+</html>

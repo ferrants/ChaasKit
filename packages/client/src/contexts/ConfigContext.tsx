@@ -1,0 +1,214 @@
+import { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
+import type { AppConfig } from '@chaaskit/shared';
+
+// Default config - used as fallback while loading
+const defaultConfig: AppConfig = {
+  app: {
+    name: 'AI Chat',
+    description: 'Your AI assistant',
+    url: 'http://localhost:5173',
+  },
+  ui: {
+    welcomeTitle: 'Welcome to AI Chat',
+    welcomeSubtitle: 'How can I help you today?',
+    inputPlaceholder: 'Type your message...',
+    samplePrompts: [
+      { label: 'Explain a concept', prompt: 'Explain quantum computing in simple terms' },
+      { label: 'Write code', prompt: 'Write a function to sort an array' },
+      { label: 'Help me brainstorm', prompt: 'Help me brainstorm ideas for a mobile app' },
+    ],
+    logo: '/logo.svg',
+  },
+  theming: {
+    defaultTheme: 'light',
+    allowUserThemeSwitch: true,
+    themes: {
+      light: {
+        name: 'Light',
+        colors: {
+          primary: '#6366f1',
+          primaryHover: '#4f46e5',
+          secondary: '#8b5cf6',
+          background: '#ffffff',
+          backgroundSecondary: '#f9fafb',
+          sidebar: '#f3f4f6',
+          textPrimary: '#111827',
+          textSecondary: '#6b7280',
+          textMuted: '#9ca3af',
+          border: '#e5e7eb',
+          inputBackground: '#ffffff',
+          inputBorder: '#d1d5db',
+          userMessageBg: '#6366f1',
+          userMessageText: '#ffffff',
+          assistantMessageBg: '#f3f4f6',
+          assistantMessageText: '#111827',
+          success: '#10b981',
+          warning: '#f59e0b',
+          error: '#ef4444',
+        },
+      },
+      dark: {
+        name: 'Dark',
+        colors: {
+          primary: '#818cf8',
+          primaryHover: '#a5b4fc',
+          secondary: '#a78bfa',
+          background: '#111827',
+          backgroundSecondary: '#1f2937',
+          sidebar: '#0f172a',
+          textPrimary: '#f9fafb',
+          textSecondary: '#d1d5db',
+          textMuted: '#6b7280',
+          border: '#374151',
+          inputBackground: '#1f2937',
+          inputBorder: '#4b5563',
+          userMessageBg: '#4f46e5',
+          userMessageText: '#ffffff',
+          assistantMessageBg: '#1f2937',
+          assistantMessageText: '#f9fafb',
+          success: '#34d399',
+          warning: '#fbbf24',
+          error: '#f87171',
+        },
+      },
+    },
+    fonts: {
+      sans: 'Inter, system-ui, sans-serif',
+      mono: 'JetBrains Mono, Menlo, monospace',
+    },
+    borderRadius: {
+      sm: '0.25rem',
+      md: '0.5rem',
+      lg: '0.75rem',
+      full: '9999px',
+    },
+  },
+  auth: {
+    methods: ['email-password'],
+    allowUnauthenticated: false,
+    magicLink: {
+      enabled: true,
+      expiresInMinutes: 15,
+    },
+  },
+  agent: {
+    type: 'built-in',
+    provider: 'anthropic',
+    model: 'claude-sonnet-4-20250514',
+    systemPrompt: 'You are a helpful AI assistant.',
+    maxTokens: 4096,
+  },
+  payments: {
+    enabled: false,
+    provider: 'stripe',
+    plans: [
+      {
+        id: 'free',
+        name: 'Free',
+        type: 'free',
+        params: {
+          monthlyMessageLimit: 20,
+        },
+      },
+    ],
+  },
+  legal: {
+    privacyPolicyUrl: '/privacy',
+    termsOfServiceUrl: '/terms',
+  },
+  userSettings: {
+    fields: [
+      {
+        key: 'name',
+        label: 'Your Name',
+        type: 'text',
+        placeholder: 'Enter your name',
+      },
+      {
+        key: 'context',
+        label: 'Additional Context',
+        type: 'textarea',
+        placeholder: 'Any context the AI should know about you...',
+      },
+    ],
+  },
+  sharing: {
+    enabled: false,
+    scope: 'public',
+    expirationOptions: ['1h', '24h', '7d', '30d', 'never'],
+  },
+  promptTemplates: {
+    enabled: true,
+    builtIn: [],
+    allowUserTemplates: true,
+  },
+  teams: {
+    enabled: true,
+  },
+  documents: {
+    enabled: false,
+    storage: {
+      provider: 'database',
+    },
+    maxFileSizeMB: 10,
+    hybridThreshold: 1000,
+    acceptedTypes: ['text/plain', 'text/markdown', 'application/json'],
+  },
+  projects: {
+    enabled: false,
+    colors: ['#6366f1', '#8b5cf6', '#ec4899', '#f43f5e', '#f97316', '#eab308', '#22c55e', '#14b8a6', '#06b6d4', '#3b82f6'],
+  },
+  api: {
+    enabled: false,
+  },
+};
+
+interface ConfigContextValue {
+  config: AppConfig;
+  configLoaded: boolean;
+}
+
+const ConfigContext = createContext<ConfigContextValue>({
+  config: defaultConfig,
+  configLoaded: false,
+});
+
+export function ConfigProvider({ children }: { children: ReactNode }) {
+  const [config, setConfig] = useState<AppConfig>(defaultConfig);
+  const [configLoaded, setConfigLoaded] = useState(false);
+
+  useEffect(() => {
+    async function loadConfig() {
+      try {
+        const response = await fetch('/api/config');
+        if (response.ok) {
+          const serverConfig = await response.json();
+          // Merge with defaults to ensure all fields exist
+          setConfig({
+            ...defaultConfig,
+            ...serverConfig,
+          });
+        }
+      } catch (error) {
+        console.warn('[Config] Failed to load config from server:', error);
+      } finally {
+        setConfigLoaded(true);
+      }
+    }
+    loadConfig();
+  }, []);
+
+  return (
+    <ConfigContext.Provider value={{ config, configLoaded }}>
+      {children}
+    </ConfigContext.Provider>
+  );
+}
+
+export function useConfig() {
+  return useContext(ConfigContext).config;
+}
+
+export function useConfigLoaded() {
+  return useContext(ConfigContext).configLoaded;
+}

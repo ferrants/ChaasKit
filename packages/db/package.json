@@ -1,0 +1,51 @@
+{
+  "name": "@chaaskit/db",
+  "version": "0.1.0",
+  "description": "Prisma database layer for ChaasKit applications",
+  "license": "MIT",
+  "author": "Matt Ferrante <@ferrants>",
+  "homepage": "https://chaaskit.com",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ferrants/chaaskit.git",
+    "directory": "packages/db"
+  },
+  "bugs": {
+    "url": "https://github.com/ferrants/chaaskit/issues"
+  },
+  "keywords": ["chaaskit", "ai", "chat", "saas", "database", "prisma"],
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "prisma": {
+    "schema": "prisma/schema"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "prisma/schema"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist",
+    "generate": "prisma generate",
+    "push": "prisma db push",
+    "migrate": "prisma migrate dev",
+    "studio": "prisma studio"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "prisma": "^6.0.0",
+    "typescript": "^5.6.0"
+  }
+}

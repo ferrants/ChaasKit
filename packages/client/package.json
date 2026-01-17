@@ -1,0 +1,84 @@
+{
+  "name": "@chaaskit/client",
+  "version": "0.1.0",
+  "description": "React frontend client for ChaasKit AI chat applications",
+  "license": "MIT",
+  "author": "Matt Ferrante <@ferrants>",
+  "homepage": "https://chaaskit.com",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ferrants/chaaskit.git",
+    "directory": "packages/client"
+  },
+  "bugs": {
+    "url": "https://github.com/ferrants/chaaskit/issues"
+  },
+  "keywords": ["chaaskit", "ai", "chat", "saas", "client", "react", "vite"],
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./src/index.tsx",
+      "import": "./dist/lib/index.js"
+    },
+    "./extensions": {
+      "types": "./src/extensions/index.ts",
+      "import": "./dist/lib/extensions.js"
+    },
+    "./ssr": {
+      "types": "./src/ssr.ts",
+      "import": "./dist/lib/ssr.js"
+    },
+    "./ssr-utils": {
+      "types": "./src/ssr-utils.tsx",
+      "import": "./dist/lib/ssr-utils.js"
+    },
+    "./routes": {
+      "types": "./src/routes/index.ts",
+      "import": "./dist/lib/routes.js"
+    },
+    "./routes/*": {
+      "types": "./src/routes/*.tsx",
+      "import": "./dist/lib/routes/*.js"
+    },
+    "./styles": "./dist/lib/styles.css",
+    "./src/*": "./src/*"
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "scripts": {
+    "dev": "vite --host",
+    "build": "tsc && vite build --config vite.config.lib.ts",
+    "build:lib": "vite build --config vite.config.lib.ts",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@chaaskit/shared": "^0.1.0",
+    "lucide-react": "^0.321.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-markdown": "^9.0.1",
+    "react-syntax-highlighter": "^15.5.0",
+    "remark-gfm": "^4.0.0",
+    "zustand": "^4.5.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.2.55",
+    "@types/react-dom": "^18.2.19",
+    "@types/react-syntax-highlighter": "^15.5.11",
+    "@vitejs/plugin-react": "^4.2.1",
+    "autoprefixer": "^10.4.17",
+    "postcss": "^8.4.35",
+    "tailwindcss": "^3.4.1",
+    "typescript": "^5.3.3",
+    "vite": "^5.1.0"
+  },
+  "peerDependencies": {
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-router": "^7.0.0"
+  }
+}
