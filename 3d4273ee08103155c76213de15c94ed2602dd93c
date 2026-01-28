@@ -1,0 +1,25 @@
+docs/configuration.md
+  5bdb94f6b0d6e6e2 18-20,22,25-26,29-31,87-95,182-183,347-348,436-531,1109-1202
+packages/create-chasskit/package.json
+  5bdb94f6b0d6e6e2 16,18
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.0.37",
+  "base_commit_sha": "3d4273ee08103155c76213de15c94ed2602dd93c",
+  "prompts": {
+    "5bdb94f6b0d6e6e2": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9ca24920-5346-4604-8b44-de04e5c56824",
+        "model": "claude-opus-4-5-20251101"
+      },
+      "human_author": "matt ferrante <mferrante3@gmail.com>",
+      "messages": [],
+      "total_additions": 1209,
+      "total_deletions": 5,
+      "accepted_lines": 1208,
+      "overriden_lines": 0
+    }
+  }
+}
