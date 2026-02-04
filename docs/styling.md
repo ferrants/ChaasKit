@@ -2,6 +2,42 @@
 
 This guide documents the styling conventions used throughout the application to maintain visual consistency. Follow these patterns when building new pages and components.
 
+## Theme Configuration
+
+Theme colors are configured in `tailwind.config.ts` using the ChaasKit Tailwind preset:
+
+```typescript
+// tailwind.config.ts
+import { createChaaskitPreset } from '@chaaskit/client/tailwind-preset';
+
+export default {
+  presets: [
+    createChaaskitPreset({
+      themes: {
+        light: {
+          primary: '#6366f1',
+          primaryHover: '#4f46e5',
+          background: '#ffffff',
+          // ... other colors
+        },
+        dark: {
+          primary: '#818cf8',
+          // ... other colors
+        },
+      },
+      defaultTheme: 'light',
+      fonts: {
+        sans: "'Inter', system-ui, sans-serif",
+        mono: "'JetBrains Mono', Menlo, monospace",
+      },
+    }),
+  ],
+  content: ['./app/**/*.{js,ts,jsx,tsx}', ...],
+};
+```
+
+The preset generates CSS variables and Tailwind color utilities at build time.
+
 ## Design Principles
 
 1. **Soft, not harsh**: Avoid hard borders and stark contrasts. Use subtle background colors for separation instead of explicit borders.
@@ -10,7 +46,7 @@ This guide documents the styling conventions used throughout the application to 
 
 ## Color Variables
 
-Use CSS variables for all colors. Never hardcode color values.
+Use CSS variables or Tailwind color utilities for all colors. Never hardcode color values.
 
 ### Primary Colors
 
@@ -283,6 +319,15 @@ When building new UI, refer to these existing components for styling patterns:
 
 ## Tailwind vs CSS Variables
 
-- **Use Tailwind classes** (`bg-primary`, `text-text-primary`) when available and working correctly
-- **Use CSS variables** (`bg-[var(--color-primary)]`) when Tailwind classes don't resolve properly or for complex color manipulation
-- **For avatars specifically**, prefer Tailwind classes as they're more reliable
+The ChaasKit preset generates both CSS variables and Tailwind color utilities. You can use either approach:
+
+- **Use Tailwind classes** (`bg-primary`, `text-text-primary`, `bg-background-secondary`) for most cases - cleaner and more concise
+- **Use CSS variables** (`bg-[var(--color-primary)]`) when you need opacity modifiers or complex color manipulation (e.g., `bg-[rgb(var(--color-primary)/0.1)]`)
+
+Available Tailwind color utilities:
+- `primary`, `primary-hover`, `secondary`
+- `background`, `background-secondary`, `sidebar`
+- `text-primary`, `text-secondary`, `text-muted`
+- `border`, `input-background`, `input-border`
+- `user-message-bg`, `user-message-text`, `assistant-message-bg`, `assistant-message-text`
+- `success`, `warning`, `error`

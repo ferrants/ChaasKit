@@ -1,6 +1,8 @@
 # Configuration
 
-All application configuration is centralized in `config/app.config.ts`. This file controls the UI, theming, authentication, AI agent, payments, MCP, and more.
+Application configuration is split between two files:
+- `config/app.config.ts` - Controls UI, authentication, AI agent, payments, MCP, and more
+- `tailwind.config.ts` - Controls theming (colors, fonts, styling)
 
 ## Configuration File
 
@@ -11,7 +13,6 @@ import type { AppConfig } from '@chaaskit/shared';
 const config: AppConfig = {
   app: { ... },
   ui: { ... },
-  theming: { ... },
   auth: { ... },
   agent: { ... },
   payments: { ... },
@@ -163,31 +164,58 @@ ui: {
 
 ### Theming
 
+Theming is configured in `tailwind.config.ts` (not in `app.config.ts`) using the ChaasKit Tailwind preset. This allows theme colors to be processed at build time for optimal CSS generation.
+
 ```typescript
-theming: {
-  defaultTheme: 'light',  // 'light' | 'dark'
-  allowUserThemeSwitch: true,
-  themes: {
-    light: {
-      name: 'Light',
-      colors: {
-        primary: '#6366f1',
-        primaryHover: '#4f46e5',
-        background: '#ffffff',
-        // ... see full color list in types
+// tailwind.config.ts
+import { createChaaskitPreset } from '@chaaskit/client/tailwind-preset';
+
+export default {
+  presets: [
+    createChaaskitPreset({
+      themes: {
+        light: {
+          primary: '#6366f1',
+          primaryHover: '#4f46e5',
+          secondary: '#8b5cf6',
+          background: '#ffffff',
+          backgroundSecondary: '#f9fafb',
+          sidebar: '#f3f4f6',
+          textPrimary: '#111827',
+          textSecondary: '#6b7280',
+          textMuted: '#9ca3af',
+          border: '#e5e7eb',
+          inputBackground: '#ffffff',
+          inputBorder: '#d1d5db',
+          userMessageBg: '#6366f1',
+          userMessageText: '#ffffff',
+          assistantMessageBg: '#f3f4f6',
+          assistantMessageText: '#111827',
+          success: '#10b981',
+          warning: '#f59e0b',
+          error: '#ef4444',
+        },
+        dark: {
+          primary: '#818cf8',
+          // ... dark theme colors
+        },
       },
-    },
-    dark: {
-      name: 'Dark',
-      colors: { ... },
-    },
-  },
-  fonts: {
-    sans: 'Inter, system-ui, sans-serif',
-    mono: 'JetBrains Mono, monospace',
-  },
-}
+      defaultTheme: 'light',
+      fonts: {
+        sans: "'Inter', system-ui, sans-serif",
+        mono: "'JetBrains Mono', Menlo, monospace",
+      },
+    }),
+  ],
+  content: [
+    './app/**/*.{js,ts,jsx,tsx}',
+    './node_modules/@chaaskit/client/src/**/*.{js,ts,jsx,tsx}',
+    './node_modules/@chaaskit/client/dist/**/*.js',
+  ],
+};
 ```
+
+The preset generates CSS variables for all theme colors that are used by Tailwind utilities (e.g., `bg-primary`, `text-text-primary`).
 
 See [Styling Guide](./styling.md) for CSS variables and component styling conventions.
 
@@ -604,7 +632,7 @@ The backend watches the config directory and auto-restarts on changes:
 The configuration is fully typed. Import types from `@chaaskit/shared`:
 
 ```typescript
-import type { AppConfig, ThemeConfig, AgentConfig, MCPConfig } from '@chaaskit/shared';
+import type { AppConfig, AgentConfig, MCPConfig } from '@chaaskit/shared';
 ```
 
 ## Thread Sharing

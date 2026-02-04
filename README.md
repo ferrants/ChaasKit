@@ -134,6 +134,7 @@ my-app/
 │   └── favicon.svg                # Favicon
 ├── .env                           # Environment variables
 ├── server.js                      # Production server
+├── tailwind.config.ts             # Theme colors and styling
 ├── vite.config.ts                 # Vite configuration
 ├── react-router.config.ts         # React Router configuration
 └── package.json
@@ -143,7 +144,7 @@ my-app/
 
 ## Configuration
 
-All configuration is centralized in `config/app.config.ts`. Here are the key sections:
+Application settings are in `config/app.config.ts`, while theming is in `tailwind.config.ts`. Here are the key sections:
 
 ### App Info
 
@@ -197,32 +198,39 @@ documents: {
 
 ### Theming
 
+Theming is configured in `tailwind.config.ts` using the ChaasKit Tailwind preset:
+
 ```typescript
-theming: {
-  defaultTheme: 'light',
-  allowUserThemeSwitch: true,
-  themes: {
-    light: {
-      name: 'Light',
-      colors: {
-        primary: '#6366f1',
-        primaryHover: '#4f46e5',
-        background: '#ffffff',
-        // ... see full color palette in config
+// tailwind.config.ts
+import { createChaaskitPreset } from '@chaaskit/client/tailwind-preset';
+
+export default {
+  presets: [
+    createChaaskitPreset({
+      themes: {
+        light: {
+          primary: '#6366f1',
+          primaryHover: '#4f46e5',
+          background: '#ffffff',
+          // ... see full color palette in tailwind.config.ts
+        },
+        dark: {
+          primary: '#818cf8',
+          // ...
+        },
       },
-    },
-    dark: {
-      name: 'Dark',
-      colors: {
-        primary: '#818cf8',
-        // ...
+      defaultTheme: 'light',
+      fonts: {
+        sans: "'Inter', system-ui, sans-serif",
+        mono: "'JetBrains Mono', Menlo, monospace",
       },
-    },
-  },
-},
+    }),
+  ],
+  content: ['./app/**/*.{js,ts,jsx,tsx}', ...],
+};
 ```
 
-See `docs/configuration.md` for all available options.
+See `docs/styling.md` for styling conventions and available CSS variables.
 
 ---
 

@@ -85,7 +85,11 @@ chaaskit (CLI scaffolding tool)
 - `chaaskit build` - Production build
 
 **`config/`** - Central configuration
-- `app.config.ts`: All app settings (theming, auth methods, AI agent, payments, MCP, etc.)
+- `app.config.ts`: All app settings (UI, auth methods, AI agent, payments, MCP, etc.)
+
+**`tailwind.config.ts`** - Theme configuration
+- Uses `createChaaskitPreset()` from `@chaaskit/client/tailwind-preset`
+- Defines theme colors (light/dark), fonts, and border radius
 
 ## Building and Linking for Local Development
 
@@ -122,7 +126,8 @@ When customizing the application, these are the primary files to edit:
 
 | File | Purpose |
 |------|---------|
-| `config/app.config.ts` | Main configuration (UI, themes, auth, AI agent, payments) |
+| `config/app.config.ts` | Main configuration (UI, auth, AI agent, payments) |
+| `tailwind.config.ts` | Theme colors, fonts, and styling configuration |
 | `.env` | Environment variables and secrets |
 | `packages/db/prisma/schema.prisma` | Database schema |
 | `packages/client/vite.config.ts` | Frontend dev server config (allowed hosts, proxy) |
@@ -169,9 +174,10 @@ Priority order:
 - Client parses via `ReadableStream` and updates Zustand store
 
 **Theming System**
-- CSS variables generated from `config/app.config.ts` theming section
+- Themes configured in `tailwind.config.ts` using `createChaaskitPreset()` from `@chaaskit/client/tailwind-preset`
+- CSS variables generated at build time by the Tailwind preset
 - `ThemeContext` manages runtime switching via `data-theme` attribute
-- Tailwind configured to use CSS variable colors
+- Tailwind utilities (e.g., `bg-primary`, `text-text-primary`) use CSS variable colors
 
 ## Development Workflow
 
