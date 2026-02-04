@@ -12,7 +12,8 @@ export function meta() {
 }
 
 export function links() {
-  return [{ rel: 'stylesheet', href: '/node_modules/@chaaskit/client/dist/lib/styles.css' }];
+  // CSS is bundled via app's Tailwind preset - no separate stylesheet needed
+  return [];
 }
 
 export default function ChatRoute() {

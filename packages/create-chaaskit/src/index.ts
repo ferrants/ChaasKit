@@ -11,7 +11,7 @@ const program = new Command();
 program
   .name('chaaskit')
   .description('Create and manage ChaasKit applications')
-  .version('0.1.0');
+  .version('0.1.1');
 
 // Create a new project
 program

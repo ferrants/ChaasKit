@@ -1,6 +1,6 @@
 {
   "name": "@chaaskit/shared",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Shared TypeScript types and Zod validation schemas for ChaasKit",
   "license": "MIT",
   "author": "Matt Ferrante <@ferrants>",

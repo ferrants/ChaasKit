@@ -19,10 +19,88 @@
  */
 
 import { lazy, Suspense, type ComponentType, type LazyExoticComponent } from 'react';
+import type { AppConfig } from '@chaaskit/shared';
 import { ClientOnly } from './components/ClientOnly';
 import { ChatLoadingSkeleton, SimpleLoadingSkeleton } from './components/LoadingSkeletons';
 
 export { ClientOnly, ChatLoadingSkeleton, SimpleLoadingSkeleton };
+
+/**
+ * Props for ConfigScript component.
+ */
+interface ConfigScriptProps {
+  /**
+   * The app config to inject into the page.
+   * This should come from the SSR loader.
+   */
+  config: AppConfig;
+}
+
+/**
+ * Injects the app config into the page as a script tag.
+ * Place this in the <head> of your root layout to make the config
+ * available immediately on page load, avoiding flash of default values.
+ *
+ * @example
+ * ```tsx
+ * // app/root.tsx
+ * import { ConfigScript } from '@chaaskit/client/ssr-utils';
+ * import { config } from '../config/app.config';
+ *
+ * export default function Root() {
+ *   return (
+ *     <html>
+ *       <head>
+ *         <ConfigScript config={config} />
+ *       </head>
+ *       <body>...</body>
+ *     </html>
+ *   );
+ * }
+ * ```
+ */
+export function ConfigScript({ config }: ConfigScriptProps) {
+  // Only include the UI-related config to avoid exposing sensitive data
+  const safeConfig = {
+    app: config.app,
+    ui: config.ui,
+    theming: config.theming,
+    auth: {
+      methods: config.auth?.methods,
+      allowUnauthenticated: config.auth?.allowUnauthenticated,
+    },
+    payments: {
+      enabled: config.payments?.enabled,
+      plans: config.payments?.plans?.map(plan => ({
+        id: plan.id,
+        name: plan.name,
+        type: plan.type,
+      })),
+    },
+    legal: config.legal,
+    sharing: config.sharing,
+    teams: config.teams,
+    projects: config.projects,
+    documents: {
+      enabled: config.documents?.enabled,
+    },
+    api: {
+      enabled: config.api?.enabled,
+    },
+    promptTemplates: {
+      enabled: config.promptTemplates?.enabled,
+      allowUserTemplates: config.promptTemplates?.allowUserTemplates,
+    },
+  };
+
+  return (
+    <script
+      dangerouslySetInnerHTML={{
+        __html: `window.__CHAASKIT_CONFIG__=${JSON.stringify(safeConfig)};`,
+      }}
+    />
+  );
+}
 
 /**
  * Route configuration options
@@ -61,7 +139,8 @@ export function createRoute(config: RouteConfig) {
   }
 
   function links() {
-    return [{ rel: 'stylesheet', href: '/node_modules/@chaaskit/client/dist/lib/styles.css' }];
+    // CSS is bundled via app's Tailwind preset - no separate stylesheet needed
+    return [];
   }
 
   function RouteComponent() {

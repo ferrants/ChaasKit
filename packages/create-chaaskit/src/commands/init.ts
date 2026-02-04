@@ -129,6 +129,7 @@ async function copyTemplateFiles(templatesPath: string, targetPath: string, proj
   await fs.ensureDir(path.join(targetPath, 'app', 'routes'));
   await fs.ensureDir(path.join(targetPath, 'app', 'components'));
   await fs.ensureDir(path.join(targetPath, 'app', 'pages'));
+  await fs.ensureDir(path.join(targetPath, 'app', 'styles'));
   await fs.ensureDir(path.join(targetPath, 'config'));
   await fs.ensureDir(path.join(targetPath, 'extensions', 'agents'));
   await fs.ensureDir(path.join(targetPath, 'extensions', 'payment-plans'));
@@ -145,6 +146,8 @@ async function copyTemplateFiles(templatesPath: string, targetPath: string, proj
     { src: 'app/root.tsx', dest: 'app/root.tsx' },
     { src: 'app/entry.client.tsx', dest: 'app/entry.client.tsx' },
     { src: 'app/entry.server.tsx', dest: 'app/entry.server.tsx' },
+    // Styles (Tailwind CSS)
+    { src: 'app/styles/app.css', dest: 'app/styles/app.css' },
     // ClientOnly re-export for convenience
     { src: 'app/components/ClientOnly.tsx', dest: 'app/components/ClientOnly.tsx' },
     // Public routes (no basePath prefix)
@@ -175,6 +178,8 @@ async function copyTemplateFiles(templatesPath: string, targetPath: string, proj
     { src: 'config/app.config.ts', dest: 'config/app.config.ts' },
     { src: 'react-router.config.ts', dest: 'react-router.config.ts' },
     { src: 'vite.config.ts', dest: 'vite.config.ts' },
+    { src: 'tailwind.config.ts', dest: 'tailwind.config.ts' },
+    { src: 'postcss.config.js', dest: 'postcss.config.js' },
     // Extensions
     { src: 'extensions/agents/.gitkeep', dest: 'extensions/agents/.gitkeep' },
     { src: 'extensions/payment-plans/.gitkeep', dest: 'extensions/payment-plans/.gitkeep' },

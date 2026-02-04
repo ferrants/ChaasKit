@@ -10,7 +10,7 @@ export function meta() {
 }
 
 export function links() {
-  return [{ rel: 'stylesheet', href: '/node_modules/@chaaskit/client/dist/lib/styles.css' }];
+  return [];
 }
 
 export default function PrivacyRoute() {

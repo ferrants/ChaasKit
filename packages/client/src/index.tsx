@@ -71,6 +71,7 @@ export { default as AdminTeamPage } from './pages/AdminTeamPage';
 // Use in React Router routes that render the chat interface
 // ============================================
 import React from 'react';
+import type { AppConfig } from '@chaaskit/shared';
 import { AuthProvider as Auth } from './contexts/AuthContext';
 import { ThemeProvider as Theme } from './contexts/ThemeContext';
 import { ConfigProvider as Config } from './contexts/ConfigContext';
@@ -79,6 +80,11 @@ import { ProjectProvider as Project } from './contexts/ProjectContext';
 
 export interface ChatProvidersProps {
   children: React.ReactNode;
+  /**
+   * Initial config to use immediately, avoiding a flash of default values.
+   * Pass the config from SSR loaders to prevent "Welcome to AI Chat" flash.
+   */
+  initialConfig?: AppConfig;
 }
 
 /**
@@ -99,9 +105,9 @@ export interface ChatProvidersProps {
  * }
  * ```
  */
-export function ChatProviders({ children }: ChatProvidersProps) {
+export function ChatProviders({ children, initialConfig }: ChatProvidersProps) {
   return (
-    <Config>
+    <Config initialConfig={initialConfig}>
       <Theme>
         <Auth>
           <Team>

@@ -1,6 +1,6 @@
 {
   "name": "@chaaskit/client",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "React frontend client for ChaasKit AI chat applications",
   "license": "MIT",
   "author": "Matt Ferrante <@ferrants>",
@@ -41,6 +41,11 @@
       "import": "./dist/lib/routes/*.js"
     },
     "./styles": "./dist/lib/styles.css",
+    "./tailwind-preset": {
+      "types": "./src/tailwind-preset.js",
+      "import": "./src/tailwind-preset.js",
+      "require": "./src/tailwind-preset.js"
+    },
     "./src/*": "./src/*"
   },
   "files": [
@@ -56,7 +61,7 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
-    "@chaaskit/shared": "^0.1.0",
+    "@chaaskit/shared": "^0.1.1",
     "lucide-react": "^0.321.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",

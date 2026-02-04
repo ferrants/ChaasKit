@@ -15,6 +15,9 @@ export {
   resetConfig,
 } from './config/loader.js';
 
+// Secrets management
+export { loadSecrets } from './secrets/index.js';
+
 // Registry and base classes for extensions
 export {
   registry,

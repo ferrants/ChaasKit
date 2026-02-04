@@ -7,24 +7,33 @@ import {
   useLoaderData,
 } from 'react-router';
 import type { Route } from './+types/root';
-import { config } from '../config/app.config';
-import { generateThemeCSS, baseStyles } from '@chaaskit/client/ssr';
+import { ConfigScript } from '@chaaskit/client/ssr-utils';
 
-function getThemeFromCookie(cookieHeader: string | null, defaultTheme: string): string {
-  if (!cookieHeader) return defaultTheme;
+// Tailwind CSS - includes theme variables built from tailwind.config.ts
+import './styles/app.css';
+
+// Default theme must match defaultTheme in tailwind.config.ts
+const DEFAULT_THEME = 'light';
+const VALID_THEMES = ['light', 'dark'];
+
+function getThemeFromCookie(cookieHeader: string | null): string {
+  if (!cookieHeader) return DEFAULT_THEME;
   const match = cookieHeader.match(/(?:^|;\s*)theme=([^;]*)/);
-  return match ? match[1] : defaultTheme;
+  const theme = match ? match[1] : DEFAULT_THEME;
+  return VALID_THEMES.includes(theme) ? theme : DEFAULT_THEME;
 }
 
 export async function loader({ request }: Route.LoaderArgs) {
+  // Import config on server only (uses process.env)
+  const { config } = await import('../config/app.config');
+
   const cookieHeader = request.headers.get('Cookie');
-  const theme = getThemeFromCookie(cookieHeader, config.theming.defaultTheme);
-  return { config, theme };
+  const theme = getThemeFromCookie(cookieHeader);
+  return { theme, config };
 }
 
 export default function Root() {
-  const { config, theme } = useLoaderData<typeof loader>();
-  const themeCSS = generateThemeCSS(config, theme);
+  const { theme, config } = useLoaderData<typeof loader>();
 
   return (
     <html lang="en" data-theme={theme}>
@@ -39,7 +48,7 @@ export default function Root() {
           href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
           rel="stylesheet"
         />
-        <style dangerouslySetInnerHTML={{ __html: themeCSS + baseStyles }} />
+        <ConfigScript config={config} />
         <ThemeScript serverTheme={theme} />
       </head>
       <body>
@@ -51,22 +60,25 @@ export default function Root() {
   );
 }
 
+/**
+ * Blocking script that syncs theme from localStorage before first paint.
+ * Since CSS has selectors for all themes (html[data-theme="..."]), changing
+ * the data-theme attribute instantly applies the correct theme.
+ */
 function ThemeScript({ serverTheme }: { serverTheme: string }) {
   return (
     <script
       dangerouslySetInnerHTML={{
         __html: `
           (function() {
+            var validThemes = ${JSON.stringify(VALID_THEMES)};
             var storedTheme = localStorage.getItem('theme');
-            if (storedTheme && storedTheme !== '${serverTheme}') {
-              // localStorage has a different theme than server rendered - update DOM and sync cookie
+            if (storedTheme && storedTheme !== '${serverTheme}' && validThemes.includes(storedTheme)) {
               document.documentElement.dataset.theme = storedTheme;
               document.cookie = 'theme=' + storedTheme + ';path=/;max-age=31536000;SameSite=Lax';
             } else if (!storedTheme) {
-              // No localStorage theme - sync server theme to localStorage
               localStorage.setItem('theme', '${serverTheme}');
             }
-            // If storedTheme === serverTheme, everything is already in sync
           })();
         `,
       }}

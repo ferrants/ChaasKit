@@ -1,6 +1,25 @@
 import { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
 import type { AppConfig } from '@chaaskit/shared';
 
+// Declare global window property for SSR-injected config
+declare global {
+  interface Window {
+    __CHAASKIT_CONFIG__?: AppConfig;
+  }
+}
+
+/**
+ * Get config injected via ConfigScript in the HTML head.
+ * This allows the config to be available immediately on page load,
+ * avoiding flash of default values.
+ */
+function getInjectedConfig(): AppConfig | undefined {
+  if (typeof window !== 'undefined' && window.__CHAASKIT_CONFIG__) {
+    return window.__CHAASKIT_CONFIG__;
+  }
+  return undefined;
+}
+
 // Default config - used as fallback while loading
 const defaultConfig: AppConfig = {
   app: {
@@ -173,11 +192,30 @@ const ConfigContext = createContext<ConfigContextValue>({
   configLoaded: false,
 });
 
-export function ConfigProvider({ children }: { children: ReactNode }) {
-  const [config, setConfig] = useState<AppConfig>(defaultConfig);
-  const [configLoaded, setConfigLoaded] = useState(false);
+interface ConfigProviderProps {
+  children: ReactNode;
+  /**
+   * Initial config to use immediately, avoiding a flash of default values.
+   * If provided, the config will not be fetched from /api/config.
+   * Useful when config is available from SSR loaders.
+   */
+  initialConfig?: AppConfig;
+}
+
+export function ConfigProvider({ children, initialConfig }: ConfigProviderProps) {
+  // Priority: 1. initialConfig prop, 2. injected window config, 3. defaults + fetch
+  const injectedConfig = getInjectedConfig();
+  const preloadedConfig = initialConfig || injectedConfig;
+
+  const [config, setConfig] = useState<AppConfig>(
+    preloadedConfig ? { ...defaultConfig, ...preloadedConfig } : defaultConfig
+  );
+  const [configLoaded, setConfigLoaded] = useState(!!preloadedConfig);
 
   useEffect(() => {
+    // Skip fetching if we have preloaded config
+    if (preloadedConfig) return;
+
     async function loadConfig() {
       try {
         const response = await fetch('/api/config');
@@ -196,7 +234,7 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
       }
     }
     loadConfig();
-  }, []);
+  }, [preloadedConfig]);
 
   return (
     <ConfigContext.Provider value={{ config, configLoaded }}>

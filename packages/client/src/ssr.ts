@@ -110,6 +110,65 @@ export function getThemeVariables(config: AppConfig, theme: string): Record<stri
 }
 
 /**
+ * Generates CSS for ALL themes using html[data-theme] selectors.
+ * This is the recommended way to include theme styles - it allows instant
+ * theme switching by just changing the data-theme attribute on <html>.
+ *
+ * @example
+ * ```tsx
+ * // app/root.tsx
+ * import { generateAllThemesCSS, baseStyles } from '@chaaskit/client/ssr';
+ *
+ * // Cache on server - only generate once
+ * let cachedCSS: string | null = null;
+ *
+ * export async function loader() {
+ *   if (!cachedCSS) cachedCSS = generateAllThemesCSS(config);
+ *   return { themeCSS: cachedCSS };
+ * }
+ *
+ * export default function Root() {
+ *   const { themeCSS } = useLoaderData();
+ *   return (
+ *     <html data-theme="dark">
+ *       <head>
+ *         <style dangerouslySetInnerHTML={{ __html: themeCSS + baseStyles }} />
+ *       </head>
+ *       ...
+ *     </html>
+ *   );
+ * }
+ * ```
+ */
+export function generateAllThemesCSS(config: AppConfig): string {
+  const themes = config.theming.themes;
+  let css = '';
+
+  for (const [themeName, themeConfig] of Object.entries(themes)) {
+    const cssVars = Object.entries(themeConfig.colors)
+      .map(([key, value]) => {
+        const cssKey = `--color-${key.replace(/([A-Z])/g, '-$1').toLowerCase()}`;
+        return `${cssKey}: ${hexToRgb(value)};`;
+      })
+      .join('\n      ');
+
+    css += `
+    html[data-theme="${themeName}"] {
+      ${cssVars}
+      --font-sans: ${config.theming.fonts.sans};
+      --font-mono: ${config.theming.fonts.mono};
+      --radius-sm: ${config.theming.borderRadius.sm};
+      --radius-md: ${config.theming.borderRadius.md};
+      --radius-lg: ${config.theming.borderRadius.lg};
+      --radius-full: ${config.theming.borderRadius.full};
+    }
+`;
+  }
+
+  return css;
+}
+
+/**
  * Base CSS styles for SSR pages.
  * Include this in your HTML template for consistent styling.
  */
