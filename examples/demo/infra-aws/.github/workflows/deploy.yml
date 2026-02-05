@@ -1,0 +1,95 @@
+name: Deploy to AWS
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      stage:
+        description: 'Deployment stage'
+        required: true
+        default: 'prod'
+        type: choice
+        options:
+          - staging
+          - prod
+
+env:
+  AWS_REGION: us-west-2
+  SERVICE_NAME: {{SERVICE_NAME}}
+
+jobs:
+  deploy:
+    name: Deploy to AWS Elastic Beanstalk
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Get pnpm store directory
+        shell: bash
+        run: |
+          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
+
+      - name: Setup pnpm cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build application
+        run: |
+          pnpm build
+          pnpm db:generate
+
+      - name: Package for Elastic Beanstalk
+        run: |
+          export BUILD_VERSION=${{ github.sha }}
+          cd cdk && chmod +x ./scripts/build-app.sh && ./scripts/build-app.sh
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Install CDK dependencies
+        run: |
+          cd cdk
+          npm install
+
+      - name: Deploy CDK Stack
+        run: |
+          cd cdk
+          npx cdk deploy --require-approval never
+        env:
+          STAGE: ${{ inputs.stage || 'prod' }}
+          BUILD_VERSION: ${{ github.sha }}
+
+      - name: Get deployment URL
+        if: success()
+        run: |
+          STAGE=${{ inputs.stage || 'prod' }}
+          echo "Deployment complete!"
+          echo "Check your application at the Elastic Beanstalk environment URL"

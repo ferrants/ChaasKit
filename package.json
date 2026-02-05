@@ -15,6 +15,7 @@
   },
   "scripts": {
     "dev": "concurrently -n server,client -c blue,green \"pnpm --filter @chaaskit/server dev\" \"pnpm --filter @chaaskit/client dev\"",
+    "dev:demo": "./scripts/dev-demo.sh",
     "build": "pnpm -r build",
     "db:generate": "pnpm --filter @chaaskit/db generate",
     "db:push": "pnpm --filter @chaaskit/db push",

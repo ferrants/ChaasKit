@@ -1,0 +1,9 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* App-specific overrides (if any) */
+body {
+  @apply bg-background text-text-primary;
+  margin: 0;
+}

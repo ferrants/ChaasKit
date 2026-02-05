@@ -176,8 +176,50 @@ export async function loadConfigAsync(): Promise<AppConfig> {
  * Log the loaded config (redacting sensitive values)
  */
 function logConfig(cfg: AppConfig): void {
-  console.log('[Config] Loaded configuration:');
-  console.log(JSON.stringify(cfg, null, 2));
+  if (process.env.NODE_ENV === 'production') {
+    console.log('[Config] Loaded configuration');
+    return;
+  }
+
+  console.log('[Config] Loaded configuration (redacted):');
+  console.log(JSON.stringify(redactConfig(cfg), null, 2));
+}
+
+function redactConfig(cfg: AppConfig): AppConfig {
+  const REDACT_KEYS = [
+    'secret',
+    'token',
+    'password',
+    'apiKey',
+    'apikey',
+    'key',
+    'authorization',
+    'auth',
+    'headers',
+  ];
+
+  const isRedactKey = (key: string): boolean =>
+    REDACT_KEYS.some((needle) => key.toLowerCase().includes(needle));
+
+  const redact = (value: unknown): unknown => {
+    if (Array.isArray(value)) {
+      return value.map(redact);
+    }
+    if (value && typeof value === 'object') {
+      const result: Record<string, unknown> = {};
+      for (const [key, val] of Object.entries(value)) {
+        if (isRedactKey(key)) {
+          result[key] = '[REDACTED]';
+        } else {
+          result[key] = redact(val);
+        }
+      }
+      return result;
+    }
+    return value;
+  };
+
+  return redact(cfg) as AppConfig;
 }
 
 /**

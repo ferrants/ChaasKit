@@ -43,6 +43,17 @@ A full-stack AI chat application framework built with React Router v7 and Expres
 - **pnpm** 8 or higher (recommended) or npm/yarn
 - **PostgreSQL** 14 or higher
 
+### Local Demo (Monorepo)
+
+If you’re working in this monorepo, there’s a persistent demo app in `examples/demo` wired to local workspace packages.
+
+```bash
+pnpm install
+cp examples/demo/.env.example examples/demo/.env
+pnpm --filter chaaskit-demo db:push
+pnpm dev:demo
+```
+
 ### 1. Create a New Project
 
 ```bash

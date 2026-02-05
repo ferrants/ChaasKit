@@ -15,18 +15,32 @@ declare global {
   }
 }
 
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
+const JWT_SECRET = process.env.JWT_SECRET;
+const DEV_FALLBACK_SECRET = 'dev-insecure-secret';
+
+function getJwtSecret(): string {
+  if (JWT_SECRET) {
+    return JWT_SECRET;
+  }
+
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('JWT_SECRET is required in production');
+  }
+
+  console.warn('[Auth] JWT_SECRET is not set; using insecure dev fallback');
+  return DEV_FALLBACK_SECRET;
+}
 
 export function generateToken(userId: string, email: string): string {
   return jwt.sign(
     { userId, email } as Omit<TokenPayload, 'iat' | 'exp'>,
-    JWT_SECRET,
+    getJwtSecret(),
     { expiresIn: '7d' }
   );
 }
 
 export function verifyToken(token: string): TokenPayload {
-  return jwt.verify(token, JWT_SECRET) as TokenPayload;
+  return jwt.verify(token, getJwtSecret()) as TokenPayload;
 }
 
 export async function requireAuth(

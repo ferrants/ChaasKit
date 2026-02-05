@@ -86,17 +86,28 @@ export async function createApp(options: CreateAppOptions = {}): Promise<express
 
   // Security middleware
   app.use(helmet());
+  const appUrl = process.env.APP_URL || 'http://localhost:5173';
+  const apiUrl = process.env.API_URL || '';
+  const extraOrigins = (process.env.CORS_ALLOWED_ORIGINS || '')
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+  const allowedOrigins = new Set([appUrl, apiUrl, ...extraOrigins].filter(Boolean));
+
   app.use(cors({
     origin: (origin, callback) => {
-      const appUrl = process.env.APP_URL || 'http://localhost:5173';
-      // Allow requests with no origin (like mobile apps or curl)
-      // or from the app URL, or from any origin for OAuth discovery
-      if (!origin || origin === appUrl) {
+      // Allow requests with no origin (mobile apps, curl, server-to-server)
+      if (!origin) {
         callback(null, true);
-      } else {
-        // Allow any origin - needed for OAuth/MCP clients
-        callback(null, true);
+        return;
       }
+
+      if (allowedOrigins.has(origin)) {
+        callback(null, true);
+        return;
+      }
+
+      callback(new Error('CORS origin not allowed'), false);
     },
     credentials: true,
   }));

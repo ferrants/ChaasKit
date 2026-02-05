@@ -13,6 +13,22 @@ This starts the React Router v7 dev server with HMR at `http://localhost:5173`, 
 
 ---
 
+## Monorepo Demo App
+
+For contributors working inside the monorepo, use the persistent demo app in `examples/demo`. It’s wired to local workspace packages to avoid publishing or rebuilding tarballs.
+
+```bash
+# From repo root
+pnpm install
+cp examples/demo/.env.example examples/demo/.env
+pnpm --filter chaaskit-demo db:push
+pnpm dev:demo
+```
+
+The demo app runs at `http://localhost:5173`. The API server runs at `http://localhost:3000` (root path returns 404 in dev).
+
+---
+
 ## Project Structure
 
 ```

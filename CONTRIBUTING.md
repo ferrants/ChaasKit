@@ -40,6 +40,28 @@ pnpm dev
 
 This starts the backend (port 3000) and frontend (port 5173) with hot reload.
 
+## Demo App (Recommended for Local Dev)
+
+There is a persistent demo app in `examples/demo` wired to local workspace packages (`workspace:*`). This avoids publishing or rebuilding tarballs to test changes.
+
+### Quick Start
+
+```bash
+# From repo root
+pnpm install
+cp examples/demo/.env.example examples/demo/.env
+pnpm --filter chaaskit-demo db:push
+pnpm dev:demo
+```
+
+### What It Runs
+
+- `@chaaskit/server` in watch mode
+- `@chaaskit/client` library build in watch mode
+- Demo app at `http://localhost:5173`
+
+The API server runs at `http://localhost:3000` (API only; root path returns 404 in dev).
+
 ## Project Structure
 
 ```
