@@ -1,0 +1,9 @@
+- [P1 | Impact: high | Ease: medium] Invite-only and gated signups (closed, caps, timed windows) — core: auth config + server-side enforcement
+- [P1 | Impact: high | Ease: easy] Public config boundary (no plan IDs, agent prompts, or secrets in client config) — core: explicit public config mapping
+- [P1 | Impact: high | Ease: medium] Credit grants and promo codes — core: db models + credits service + redemption API
+- [P2 | Impact: medium | Ease: medium] Credit grants on achievements — core: event hooks + grant handlers
+- [P1 | Impact: high | Ease: medium] Token-based credits (track usage by model tokens) — core: usage metering + ledger entries
+- [P2 | Impact: medium | Ease: medium-hard] Tool renderers: direct components instead of outputTemplates — core: shared tool payload schema + client renderer registry
+- [P2 | Impact: medium | Ease: medium-hard] Deploy targets: ECS, Vercel + Convex, Fly.io — core: templates + docs + CLI hooks
+- [P2 | Impact: high | Ease: hard] Tests (baseline coverage) — core: test harness + API/auth/credits coverage
+- [P3 | Impact: medium | Ease: medium-hard] Automated service setup tests (Prisma + SQLite) — core: test DB provider + CI scripts

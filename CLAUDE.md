@@ -212,6 +212,10 @@ pnpm dev:demo
 - Update `examples/demo/`
 - Update relevant `docs/` files
 
+### Tests (When Adding/Changing Features)
+- Add or update tests for new behavior (Vitest, run via `pnpm test`)
+- Prefer unit tests with mocks; use Postgres test DB for persistence-sensitive logic
+
 ### Network Access
 To access the dev server from other machines:
 1. Frontend is exposed on `0.0.0.0:5173` via `--host` flag

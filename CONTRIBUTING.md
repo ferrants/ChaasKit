@@ -91,6 +91,22 @@ cd packages/server && pnpm build
 pnpm typecheck
 ```
 
+## Testing
+
+We use Vitest and run Prisma against a Postgres test database.
+Set `TEST_DATABASE_URL` (preferred) or `DATABASE_URL` before running tests.
+
+```bash
+# Run all tests
+TEST_DATABASE_URL="postgresql://postgres:postgres@localhost:5433/chat_saas_test?schema=public" pnpm test
+
+# Watch mode
+TEST_DATABASE_URL="postgresql://postgres:postgres@localhost:5433/chat_saas_test?schema=public" pnpm test:watch
+
+# Helper script
+./scripts/test.sh
+```
+
 ## Testing Changes in Another Project
 
 Before packages are published to npm, you can test them locally using the `pack:local` script. This creates tarballs that simulate the npm-published packages.

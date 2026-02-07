@@ -37,6 +37,8 @@ coverage/
 # Prisma
 packages/db/prisma/*.db
 packages/db/prisma/*.db-journal
+# Test artifacts
+tests/tmp/
 
 # Misc
 *.tsbuildinfo
