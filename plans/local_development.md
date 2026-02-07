@@ -1,3 +1,0 @@
-- use chat-saas:8 tmux session to see server logs of a consumer using the core package (this repo)
-- use chat-saas:0 tmux session to run commands for this core 
-- DO NOT delete anything outside of /home/matt/code/chaaskit and /home/matt/code/draftlineai/ . do not delete the whole repos, create a new one if you need
