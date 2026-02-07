@@ -371,6 +371,7 @@ export interface PublicAppConfig {
     magicLink: MagicLinkConfig;
     emailVerification?: EmailVerificationConfig;
     gating?: AuthGatingConfig;
+    isAdmin?: boolean;
   };
   payments: {
     enabled: boolean;
@@ -402,6 +403,9 @@ export interface PublicAppConfig {
     enabled: boolean;
   };
   email?: {
+    enabled: boolean;
+  };
+  slack?: {
     enabled: boolean;
   };
   credits?: {

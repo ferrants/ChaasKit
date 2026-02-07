@@ -271,13 +271,15 @@ export default function ToolCallDisplay({ toolCall, toolResult, isPending, uiRes
           ? await handler({ type: data.type, payload: data.payload })
           : { error: 'Tool UI bridge not configured' };
 
-        event.source?.postMessage(
+        const sourceWindow = event.source as Window | null;
+        sourceWindow?.postMessage(
           { source: TOOL_UI_MESSAGE_SOURCE, id: data.id, ok: true, result },
           targetOrigin
         );
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Tool UI bridge error';
-        event.source?.postMessage(
+        const sourceWindow = event.source as Window | null;
+        sourceWindow?.postMessage(
           { source: TOOL_UI_MESSAGE_SOURCE, id: data.id, ok: false, error: message },
           targetOrigin
         );

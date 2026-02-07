@@ -6,7 +6,8 @@ if ! command -v pnpm >/dev/null 2>&1; then
   exit 1
 fi
 
-# Start server in dev mode (tsx watch)
+# Start server in dev mode (tsx watch) using demo config
+export CHAASKIT_CONFIG_PATH="$(pwd)/examples/demo/config/app.config.ts"
 pnpm --filter @chaaskit/server dev &
 SERVER_PID=$!
 

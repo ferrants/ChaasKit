@@ -114,6 +114,7 @@ const defaultConfig: PublicAppConfig = {
       mode: 'open',
       waitlistEnabled: false,
     },
+    isAdmin: false,
   },
   payments: {
     enabled: false,

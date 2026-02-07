@@ -1,5 +1,5 @@
 import { db } from '@chaaskit/db';
-import type { Prisma } from '@chaaskit/db';
+import type { PrismaTypes } from '@chaaskit/db';
 import { getConfig } from '../config/loader.js';
 
 export type CreditsOwnerType = 'user' | 'team';
@@ -19,7 +19,7 @@ function getDefaultExpiryDays(): number | undefined {
   return config.credits.defaultExpiryDays ?? undefined;
 }
 
-type DbClient = Prisma.TransactionClient | typeof db;
+type DbClient = PrismaTypes.TransactionClient;
 
 async function setOwnerCreditsCache(
   tx: DbClient,
@@ -89,7 +89,7 @@ async function expireCreditsIfNeeded(
   }
 
   await tx.creditsGrant.updateMany({
-    where: { id: { in: expiredGrants.map((g) => g.id) } },
+    where: { id: { in: expiredGrants.map(({ id }) => id) } },
     data: { remaining: 0 },
   });
 
@@ -105,7 +105,7 @@ async function expireCreditsIfNeeded(
         metadata: {
           grantId: grant.id,
           expiredAt: now.toISOString(),
-        },
+        } as PrismaTypes.InputJsonValue,
       },
     });
   }
@@ -148,8 +148,8 @@ export async function grantCredits(params: {
   reason?: string;
   sourceType: string;
   expiresAt?: Date | null;
-  metadata?: Record<string, unknown>;
-  tx?: DbClient;
+  metadata?: PrismaTypes.InputJsonValue;
+  tx?: PrismaTypes.TransactionClient;
 }): Promise<number> {
   const { ownerType, ownerId, amount, reason, sourceType, metadata } = params;
   const expiresAt = params.expiresAt ?? undefined;
@@ -170,7 +170,7 @@ export async function grantCredits(params: {
         reason,
         sourceType,
         expiresAt: resolvedExpiresAt,
-        metadata,
+        metadata: metadata ?? undefined,
       },
     });
 
@@ -199,7 +199,7 @@ export async function consumeCredits(params: {
   amount: number;
   reason?: string;
   sourceType: string;
-  metadata?: Record<string, unknown>;
+  metadata?: PrismaTypes.InputJsonValue;
 }): Promise<{ consumed: number; shortfall: number; balance: number }> {
   const { ownerType, ownerId, amount, reason, sourceType, metadata } = params;
 
@@ -262,7 +262,7 @@ export async function consumeCredits(params: {
           delta: -consumed,
           reason,
           sourceType,
-          metadata,
+          metadata: metadata ?? undefined,
         },
       });
     }

@@ -18,7 +18,7 @@ export default function OAuthAppsSection() {
   const [revokingId, setRevokingId] = useState<string | null>(null);
 
   // Check if OAuth is enabled
-  const oauthEnabled = config.mcp?.server?.oauth?.enabled;
+  const oauthEnabled = config.mcp?.servers?.some((server) => server.authMode === 'user-oauth');
 
   useEffect(() => {
     if (oauthEnabled) {

@@ -373,9 +373,7 @@ export default function Sidebar({ onClose, onOpenSearch }: SidebarProps) {
         )}
 
         {/* Admin Dashboard - show for site admins (config or database flag) */}
-        {(user?.isAdmin || config.admin?.emails?.some(
-          (email: string) => email.toLowerCase() === user?.email?.toLowerCase()
-        )) && (
+        {(user?.isAdmin || config.auth?.isAdmin) && (
           <Link
             to={appPath('/admin')}
             className="mb-1 flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-xs text-text-secondary hover:bg-background-secondary hover:text-text-primary active:bg-background-secondary"

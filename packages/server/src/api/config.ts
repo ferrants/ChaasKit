@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import type { AppConfig, PublicAppConfig } from '@chaaskit/shared';
 import { getConfig } from '../config/loader.js';
+import { optionalAuth } from '../middleware/auth.js';
 
 export const configRouter = Router();
 
@@ -68,6 +69,10 @@ function buildClientConfig(config: AppConfig): PublicAppConfig {
       enabled: config.email.enabled,
       // Exclude: providerConfig, fromAddress, fromName (internal details)
     } : undefined,
+    slack: config.slack ? {
+      enabled: config.slack.enabled,
+      // Exclude: secrets and OAuth configs
+    } : undefined,
     scheduledPrompts: config.scheduledPrompts ? {
       enabled: config.scheduledPrompts.enabled,
       featureName: config.scheduledPrompts.featureName,
@@ -90,7 +95,11 @@ function buildClientConfig(config: AppConfig): PublicAppConfig {
 }
 
 // GET /api/config - Get client-safe configuration
-configRouter.get('/', (req, res) => {
+configRouter.get('/', optionalAuth, (req, res) => {
   const config = getConfig();
-  res.json(buildClientConfig(config));
+  const clientConfig = buildClientConfig(config);
+  if (req.user?.isAdmin) {
+    clientConfig.auth.isAdmin = true;
+  }
+  res.json(clientConfig);
 });

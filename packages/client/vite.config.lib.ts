@@ -33,6 +33,8 @@ export default defineConfig({
         'routes/AdminUsersRoute': path.resolve(__dirname, 'src/routes/AdminUsersRoute.tsx'),
         'routes/AdminTeamsRoute': path.resolve(__dirname, 'src/routes/AdminTeamsRoute.tsx'),
         'routes/AdminTeamRoute': path.resolve(__dirname, 'src/routes/AdminTeamRoute.tsx'),
+        'routes/AdminWaitlistRoute': path.resolve(__dirname, 'src/routes/AdminWaitlistRoute.tsx'),
+        'routes/AdminPromoCodesRoute': path.resolve(__dirname, 'src/routes/AdminPromoCodesRoute.tsx'),
         'routes/VerifyEmailRoute': path.resolve(__dirname, 'src/routes/VerifyEmailRoute.tsx'),
         'routes/AcceptInviteRoute': path.resolve(__dirname, 'src/routes/AcceptInviteRoute.tsx'),
         'routes/PricingRoute': path.resolve(__dirname, 'src/routes/PricingRoute.tsx'),

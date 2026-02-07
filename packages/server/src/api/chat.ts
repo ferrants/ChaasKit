@@ -354,7 +354,7 @@ chatRouter.post('/', optionalAuth, optionalVerifiedEmail, async (req, res, next)
     // Stream response with tool loop
     let fullContent = '';
     let totalUsage = { inputTokens: 0, outputTokens: 0 };
-    const toolCalls: Array<{ id: string; name: string; serverId: string; input: Record<string, unknown>; result: MCPContentItem[]; isError?: boolean; uiResource?: { uri: string; text?: string; blob?: string; mimeType?: string; isOpenAiFormat?: boolean; toolInput?: Record<string, unknown>; toolOutput?: MCPContentItem[] | Record<string, unknown> } }> = [];
+    const toolCalls: Array<{ id: string; name: string; serverId: string; input: Record<string, unknown>; result: MCPContentItem[]; isError?: boolean; structuredContent?: Record<string, unknown>; uiResource?: { uri: string; text?: string; blob?: string; mimeType?: string; isOpenAiFormat?: boolean; toolInput?: Record<string, unknown>; toolOutput?: MCPContentItem[] | Record<string, unknown> } }> = [];
 
     try {
       console.log(`[Chat] Starting stream with ${history.length} messages in history`);
@@ -733,9 +733,11 @@ chatRouter.post('/', optionalAuth, optionalVerifiedEmail, async (req, res, next)
 
       // Record usage + increment usage on the correct entity (user or team)
       if (req.user) {
+        const usageProvider = agentDef && isBuiltInAgent(agentDef) ? agentDef.provider : 'external';
+        const usageModel = agentDef && isBuiltInAgent(agentDef) ? agentDef.model : 'external';
         await recordUsage({
-          provider: isBuiltInAgent(agentDef) ? agentDef.provider : 'external',
-          model: isBuiltInAgent(agentDef) ? agentDef.model : 'external',
+          provider: usageProvider,
+          model: usageModel,
           promptTokens: totalUsage.inputTokens,
           completionTokens: totalUsage.outputTokens,
           userId: req.user.id,
@@ -865,9 +867,11 @@ chatRouter.post('/regenerate/:messageId', requireAuth, async (req, res, next) =>
       });
 
       // Record usage + increment usage on the correct entity (user or team)
+      const usageProvider = agentDef && isBuiltInAgent(agentDef) ? agentDef.provider : 'external';
+      const usageModel = agentDef && isBuiltInAgent(agentDef) ? agentDef.model : 'external';
       await recordUsage({
-        provider: isBuiltInAgent(agentDef) ? agentDef.provider : 'external',
-        model: isBuiltInAgent(agentDef) ? agentDef.model : 'external',
+        provider: usageProvider,
+        model: usageModel,
         promptTokens: usage.inputTokens,
         completionTokens: usage.outputTokens,
         userId: req.user!.id,

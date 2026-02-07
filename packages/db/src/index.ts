@@ -15,7 +15,7 @@ if (process.env.NODE_ENV !== 'production') {
 
 // Re-export Prisma namespace and types
 export const Prisma = PrismaClientPkg.Prisma;
-export type { PrismaClient } from '@prisma/client';
+export type { Prisma as PrismaTypes, PrismaClient } from '@prisma/client';
 export { prisma as db };
 
 // Schema helpers for project setup

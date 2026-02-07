@@ -325,6 +325,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
                 input?: Record<string, unknown>;
                 isError?: boolean;
                 uiResource?: UIResource;
+                structuredContent?: Record<string, unknown>;
                 // Tool confirmation fields
                 confirmationId?: string;
                 toolName?: string;

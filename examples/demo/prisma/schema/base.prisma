@@ -51,6 +51,14 @@ model User {
   mcpCredentials  MCPCredential[]
   apiKeys         ApiKey[]
   documents       Document[]
+  waitlistInvites WaitlistEntry[]
+  inviteTokensUsed InviteToken[] @relation("InviteTokenUsedBy")
+  inviteTokensCreated InviteToken[] @relation("InviteTokenCreatedBy")
+  promoCodeRedemptions PromoCodeRedemption[]
+  referralCodes  ReferralCode[]
+  referralsSent  Referral[] @relation("Referrer")
+  referralsReceived Referral[] @relation("Referred")
+  usageMeters    UsageMeter[]
 
   // OAuth relations
   oauthClients    OAuthClient[]
@@ -132,6 +140,7 @@ model Message {
 
   // Relations
   feedback MessageFeedback[]
+  usageMeters UsageMeter[]
 
   createdAt DateTime @default(now())
 
@@ -245,6 +254,7 @@ model Team {
   documents        Document[]
   slackIntegration SlackIntegration?
   scheduledPrompts ScheduledPrompt[]
+  usageMeters      UsageMeter[]
   createdAt        DateTime     @default(now())
   updatedAt        DateTime     @updatedAt
 
