@@ -207,6 +207,10 @@ pnpm --filter chaaskit-demo db:push
 pnpm dev:demo
 ```
 
+Demo config + tools:
+- The demo server must load `examples/demo/config/app.config.ts` (via `CHAASKIT_CONFIG_PATH`) to pick up demo-specific settings like `allowedTools: ['native:*']`.
+- Use `pnpm dev:demo` (or `CHAASKIT_CONFIG_PATH=examples/demo/config/app.config.ts pnpm --filter @chaaskit/server dev`) so the demo config is actually loaded.
+
 ### Sync Checklist (When Adding/Changing Features)
 - Update `packages/create-chaaskit/src/templates/`
 - Update `examples/demo/`
@@ -225,6 +229,10 @@ To access the dev server from other machines:
 1. Modify `packages/db/prisma/schema.prisma`
 2. Run `pnpm db:push` to apply changes
 3. Run `pnpm db:generate` if you added new models
+
+Demo schema sync:
+- The demo app has its own Prisma schema in `examples/demo/prisma/schema/`.
+- When adding/changing models in `packages/db/prisma/schema/`, copy the updated `base.prisma` and `custom.prisma` into `examples/demo/prisma/schema/` and run `pnpm --filter chaaskit-demo db:push`.
 
 ### Switching AI Providers
 1. Edit `config/app.config.ts`:
@@ -291,6 +299,9 @@ Optional:
 2. Check `config/app.config.ts` matches the provider with a key
 3. Register/login and send a message
 4. Check server logs for errors if chat fails
+
+### Demo build note
+- The demo app uses React Router SSR and includes loaders/actions. Do not disable SSR for demo builds; SPA mode will fail on routes that export `loader`.
 
 ## Debugging
 
