@@ -54,6 +54,21 @@ pnpm --filter chaaskit-demo db:push
 pnpm dev:demo
 ```
 
+### Publishing (GitHub Actions + npm OIDC)
+
+This repo uses Changesets and npm Trusted Publishing (OIDC) for releases.
+
+Setup:
+- Configure each package as a Trusted Publisher in npm (workflow file: `changesets-release.yml`).
+- Ensure the GitHub Actions workflow has `id-token: write` permissions (already set).
+- No `NPM_TOKEN` secret is required when using OIDC.
+
+Release flow:
+1. Run `pnpm changeset` and select a patch bump (`0.1.2` from `0.1.1`).
+2. Commit and push to `main`.
+3. GitHub Actions opens a “Version Packages” PR.
+4. Merge that PR to publish to npm via OIDC.
+
 ### 1. Create a New Project
 
 ```bash
