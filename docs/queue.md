@@ -30,6 +30,8 @@ export const config: AppConfig = {
 
 ### 2. Register Job Handlers
 
+Place job handlers in `extensions/jobs/*.ts` (auto-loaded by the server) or import them manually during startup.
+
 ```typescript
 // extensions/jobs/email.ts
 import { registerJobHandler } from '@chaaskit/server';

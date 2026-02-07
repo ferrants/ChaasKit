@@ -1,0 +1,610 @@
+// =============================================================================
+// Base Schema - @chat-saas/db
+// =============================================================================
+// This file contains the core models provided by @chat-saas/db.
+// DO NOT MODIFY THIS FILE - it will be overwritten by `chat-saas-server db:sync`.
+//
+// For custom models, create or edit `custom.prisma` in this same directory.
+// =============================================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  passwordHash  String?
+  name          String?
+  avatarUrl     String?
+
+  // Auth
+  emailVerified Boolean   @default(false)
+  oauthProvider String?
+  oauthId       String?
+
+  // Admin flag
+  isAdmin       Boolean   @default(false)
+
+  // Subscription
+  plan              String  @default("free")
+  stripeCustomerId  String? @unique
+  credits           Int     @default(0)
+  messagesThisMonth Int     @default(0)
+
+  // User settings/context (JSON)
+  settings        Json    @default("{}")
+  themePreference String?
+
+  // Relations
+  threads         Thread[]
+  projects        Project[]
+  teamMemberships TeamMember[]
+  feedback        MessageFeedback[]
+  templates       PromptTemplate[]
+  magicLinks      MagicLink[]
+  mcpCredentials  MCPCredential[]
+  apiKeys         ApiKey[]
+  documents       Document[]
+
+  // OAuth relations
+  oauthClients    OAuthClient[]
+  oauthAuthCodes  OAuthAuthorizationCode[]
+  oauthTokens     OAuthToken[]
+
+  // Scheduled prompts
+  scheduledPrompts ScheduledPrompt[]
+
+  // Email verification
+  emailVerifications EmailVerification[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([email])
+  @@index([stripeCustomerId])
+}
+
+model Thread {
+  id        String    @id @default(cuid())
+  title     String    @default("New Chat")
+  userId    String?
+  user      User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  // Agent used for this thread (null = default agent)
+  agentId   String?
+
+  // For team threads
+  teamId    String?
+  team      Team?     @relation(fields: [teamId], references: [id], onDelete: SetNull)
+
+  // For project threads
+  projectId String?
+  project   Project?  @relation(fields: [projectId], references: [id], onDelete: SetNull)
+
+  // Branching support
+  parentThreadId  String?
+  parentMessageId String?
+  parentThread    Thread?   @relation("ThreadBranches", fields: [parentThreadId], references: [id], onDelete: SetNull)
+  branches        Thread[]  @relation("ThreadBranches")
+
+  // Archived threads (hidden but preserved)
+  archivedAt DateTime?
+
+  // Relations
+  messages         Message[]
+  sharedLinks      SharedThread[]
+  slackEvents      SlackMessageEvent[]
+  scheduledPrompts ScheduledPrompt[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([teamId])
+  @@index([projectId])
+  @@index([parentThreadId])
+  @@index([agentId])
+}
+
+model Message {
+  id        String   @id @default(cuid())
+  threadId  String
+  thread    Thread   @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  role      String   // 'user' | 'assistant' | 'system'
+  content   String
+
+  // File attachments (JSON array)
+  files     Json?
+
+  // Tool calls and results (JSON)
+  toolCalls   Json?
+  toolResults Json?
+
+  // Token usage
+  inputTokens  Int?
+  outputTokens Int?
+
+  // Relations
+  feedback MessageFeedback[]
+
+  createdAt DateTime @default(now())
+
+  @@index([threadId])
+  @@index([createdAt])
+}
+
+model MessageFeedback {
+  id        String   @id @default(cuid())
+  messageId String
+  message   Message  @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      String   // 'up' | 'down'
+  comment   String?
+  createdAt DateTime @default(now())
+
+  @@unique([messageId, userId])
+  @@index([messageId])
+}
+
+model SharedThread {
+  id        String    @id @default(cuid())
+  shareId   String    @unique @default(cuid())
+  threadId  String
+  thread    Thread    @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  expiresAt DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([shareId])
+  @@index([threadId])
+}
+
+model PromptTemplate {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name      String
+  prompt    String
+  variables Json     @default("[]")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+}
+
+model MagicLink {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime @default(now())
+
+  @@index([token])
+  @@index([userId])
+}
+
+model PasswordReset {
+  id        String    @id @default(cuid())
+  token     String    @unique
+  email     String
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([token])
+  @@index([email])
+}
+
+// Projects - organizational folders for threads with AI context
+model Project {
+  id         String    @id @default(cuid())
+  name       String
+  context    String?   // AI context for project threads
+  color      String    // hex color from preset list
+  sharing    String    @default("private") // 'private' | 'team'
+  userId     String    // creator
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  teamId     String?   // optional team association
+  team       Team?     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  threads    Thread[]
+  documents  Document[]
+  archivedAt DateTime? // null = active, set = archived
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  @@index([userId])
+  @@index([teamId])
+}
+
+// Team workspaces
+model Team {
+  id         String       @id @default(cuid())
+  name       String
+  context    String?      // Additional context passed to AI agent for team threads
+  archivedAt DateTime?    // null = active, set = archived
+
+  // Billing fields
+  plan              String    @default("free")
+  stripeCustomerId  String?   @unique
+  credits           Int       @default(0)
+  messagesThisMonth Int       @default(0)
+
+  members          TeamMember[]
+  threads          Thread[]
+  projects         Project[]
+  invites          TeamInvite[]
+  apiKeys          ApiKey[]
+  documents        Document[]
+  slackIntegration SlackIntegration?
+  scheduledPrompts ScheduledPrompt[]
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+
+  @@index([stripeCustomerId])
+}
+
+model TeamMember {
+  id     String @id @default(cuid())
+  teamId String
+  team   Team   @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role   String // 'owner' | 'admin' | 'member' | 'viewer'
+
+  createdAt DateTime @default(now())
+
+  @@unique([teamId, userId])
+  @@index([teamId])
+  @@index([userId])
+}
+
+model TeamInvite {
+  id         String    @id @default(cuid())
+  teamId     String
+  team       Team      @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  email      String
+  role       String    // 'admin' | 'member' | 'viewer'
+  token      String    @unique
+  invitedBy  String
+  expiresAt  DateTime
+  acceptedAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@unique([teamId, email])
+  @@index([token])
+}
+
+// MCP Server Credentials
+model MCPCredential {
+  id             String    @id @default(cuid())
+  userId         String
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  serverId       String
+  credentialType String    // 'api_key' | 'oauth'
+  encryptedData  String    // Encrypted JSON: {apiKey} or {accessToken, refreshToken, expiresAt}
+  oauthState     String?   // Temporary state during OAuth flow
+  codeVerifier   String?   // PKCE verifier (encrypted)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@unique([userId, serverId])
+  @@index([userId])
+}
+
+// API Keys for programmatic access
+model ApiKey {
+  id           String    @id @default(cuid())
+  userId       String
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  teamId       String?   // Optional: if set, key operates in team context
+  team         Team?     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  name         String    // User-provided label, e.g. "My CLI Tool"
+  keyPrefix    String    // First 10 chars for display: "sk-abc123..."
+  keyHash      String    // bcrypt hash of full key
+  lastUsedAt   DateTime?
+  expiresAt    DateTime? // Optional expiration
+  createdAt    DateTime  @default(now())
+
+  @@index([userId])
+  @@index([teamId])
+  @@index([keyPrefix])  // For lookup during auth
+}
+
+// OAuth Client Registration for MCP Server (RFC 7591)
+model OAuthClient {
+  id                String    @id @default(cuid())
+  clientId          String    @unique  // Public client ID
+  clientSecretHash  String?   // bcrypt hash (for confidential clients)
+  clientName        String
+  clientUri         String?
+  redirectUris      String    // JSON array of allowed redirect URIs
+  grantTypes        String    @default("[\"authorization_code\",\"refresh_token\"]")
+  responseTypes     String    @default("[\"code\"]")
+  tokenEndpointAuth String    @default("none") // "none", "client_secret_basic", "client_secret_post"
+  isActive          Boolean   @default(true)
+
+  // For user-registered clients (null = dynamic registration)
+  userId            String?
+  user              User?     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  // Relations
+  tokens            OAuthToken[]
+  authCodes         OAuthAuthorizationCode[]
+
+  @@index([clientId])
+  @@index([userId])
+}
+
+// OAuth Authorization Codes (short-lived, for auth code flow)
+model OAuthAuthorizationCode {
+  id              String      @id @default(cuid())
+  code            String      @unique
+  clientId        String
+  client          OAuthClient @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  userId          String
+  user            User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  redirectUri     String
+  scope           String?
+  codeChallenge   String      // PKCE code challenge
+  codeChallengeMethod String  @default("S256")
+  expiresAt       DateTime
+  usedAt          DateTime?
+  createdAt       DateTime    @default(now())
+
+  @@index([code])
+  @@index([clientId])
+  @@index([userId])
+}
+
+// OAuth Access/Refresh Tokens
+model OAuthToken {
+  id               String      @id @default(cuid())
+  tokenHash        String      @unique  // Hash of access token
+  refreshTokenHash String?     @unique  // Hash of refresh token
+  clientId         String
+  client           OAuthClient @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  userId           String
+  user             User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  scope            String?
+  expiresAt        DateTime
+  refreshExpiresAt DateTime?
+  revokedAt        DateTime?
+  createdAt        DateTime    @default(now())
+
+  @@index([tokenHash])
+  @@index([refreshTokenHash])
+  @@index([clientId])
+  @@index([userId])
+}
+
+// Document storage for @-mentionable resources
+model Document {
+  id          String    @id @default(cuid())
+  name        String                          // Unique within scope
+  content     String?   @db.Text              // For small text docs (stored in DB)
+  storageKey  String?                         // For file storage provider (filesystem/S3)
+  mimeType    String    @default("text/plain")
+  fileSize    Int       @default(0)
+  charCount   Int       @default(0)           // For hybrid threshold
+
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  teamId      String?
+  team        Team?     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  projectId   String?
+  project     Project?  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  archivedAt  DateTime?
+
+  @@unique([userId, name, teamId, projectId])  // Unique name per scope
+  @@index([userId])
+  @@index([teamId])
+  @@index([projectId])
+}
+
+// Slack Integration - connects a team to their Slack workspace
+model SlackIntegration {
+  id                  String    @id @default(cuid())
+
+  // Team relationship (one-to-one)
+  teamId              String    @unique
+  team                Team      @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  // Slack workspace info
+  slackWorkspaceId    String    @unique  // Slack's team/workspace ID (T01234567)
+  slackWorkspaceName  String              // Human-readable workspace name
+  slackBotUserId      String              // Bot's user ID for @mention detection
+
+  // Encrypted credentials
+  encryptedTokens     String              // AES-encrypted JSON: {botToken, accessToken?}
+
+  // Per-team settings
+  notificationChannel String?             // Default channel for notifications (#general)
+  aiChatEnabled       Boolean   @default(true)
+
+  // Status tracking
+  status              String    @default("active")  // 'active' | 'disconnected' | 'error'
+  statusMessage       String?             // Error details if status='error'
+
+  // Audit
+  installedBy         String              // User ID who installed
+  installedAt         DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  // Relations
+  messageEvents       SlackMessageEvent[]
+
+  @@index([teamId])
+  @@index([slackWorkspaceId])
+}
+
+// Slack Message Events - tracks incoming events for deduplication and retry
+model SlackMessageEvent {
+  id                  String    @id @default(cuid())
+
+  // Integration relationship
+  integrationId       String
+  integration         SlackIntegration @relation(fields: [integrationId], references: [id], onDelete: Cascade)
+
+  // Slack message identifiers
+  slackEventId        String    @unique   // Slack's event_id for deduplication
+  slackChannelId      String              // Channel ID (C01234567)
+  slackThreadTs       String?             // Parent message timestamp (for threads)
+  slackMessageTs      String              // This message's timestamp
+  slackUserId         String              // User who sent the message
+  messageText         String?             // Original message text (for debugging)
+
+  // Processing state
+  status              String    @default("pending")  // pending|processing|completed|failed
+  retryCount          Int       @default(0)
+  lastError           String?             // Error message if failed
+
+  // Internal thread linkage (for context continuity)
+  internalThreadId    String?
+  internalThread      Thread?   @relation(fields: [internalThreadId], references: [id], onDelete: SetNull)
+
+  // Response tracking
+  responseTs          String?             // Timestamp of bot's response message
+
+  // Timing
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+  processedAt         DateTime?
+
+  @@index([integrationId])
+  @@index([slackEventId])
+  @@index([status, updatedAt])           // For retry queries
+  @@index([slackChannelId, slackThreadTs]) // For thread context lookup
+}
+
+// One-time scheduled jobs (delayed execution)
+// Used by the queue scheduler for jobs that need to run at a specific time
+model ScheduledJob {
+  id           String    @id @default(cuid())
+  type         String                      // Job type (e.g., 'email:send')
+  payload      String    @db.Text          // JSON job payload
+  options      String    @db.Text          // JSON EnqueueOptions
+  scheduledFor DateTime                    // When to enqueue to the queue
+  status       String    @default("scheduled")  // scheduled | enqueued | cancelled
+  error        String?                     // Error message if failed to enqueue
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([status, scheduledFor])
+  @@index([type])
+}
+
+// Recurring jobs (cron-style)
+// Scheduler polls these and enqueues jobs according to schedule
+model RecurringJob {
+  id          String    @id @default(cuid())
+  name        String    @unique            // Unique job name: "daily-report", "hourly-cleanup"
+  type        String                       // Job type to enqueue (e.g., 'report:generate')
+  payload     String    @db.Text           // JSON payload for each job
+  options     String    @db.Text           // JSON EnqueueOptions (minus scheduling)
+  schedule    String                       // Cron: "0 9 * * *" or interval: "every 1 hour"
+  timezone    String    @default("UTC")
+  enabled     Boolean   @default(true)
+  nextRunAt   DateTime?                    // Calculated next run time
+  lastRunAt   DateTime?                    // Last successful run
+  lastError   String?                      // Last error (if any)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([enabled, nextRunAt])
+}
+
+// Scheduled Prompts (Automations)
+// User or team-configurable prompts that run on a schedule
+model ScheduledPrompt {
+  id              String    @id @default(cuid())
+  name            String                       // "Daily Summary", "Weekly Report"
+  prompt          String    @db.Text           // The prompt text to run
+  agentId         String?                      // Agent to use (null = default)
+
+  // Schedule
+  schedule        String                       // Cron: "0 9 * * 1-5" or interval: "every 1 day"
+  timezone        String    @default("UTC")
+  enabled         Boolean   @default(true)
+
+  // Notification settings
+  notifySlack     Boolean   @default(true)
+  notifyEmail     Boolean   @default(false)
+  emailRecipients String?   @db.Text           // JSON array of emails
+
+  // Results storage
+  threadId        String?                      // Dedicated thread for results (created on first run)
+  thread          Thread?   @relation(fields: [threadId], references: [id], onDelete: SetNull)
+
+  // Ownership (one of these must be set)
+  userId          String?
+  user            User?     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  teamId          String?
+  team            Team?     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  // Tracking
+  lastRunAt       DateTime?
+  lastRunStatus   String?                      // "success" | "failed"
+  lastError       String?
+  runCount        Int       @default(0)
+
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([userId])
+  @@index([teamId])
+  @@index([enabled])
+}
+
+// Email Verification Codes
+model EmailVerification {
+  id        String    @id @default(cuid())
+  code      String    // 6-digit code (hashed)
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  usedAt    DateTime?
+  attempts  Int       @default(0)  // Brute force protection
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
+}
+
+
+// =============================================================================
+// Custom Schema - Your Application Models
+// =============================================================================
+// Add your custom models here. This file is preserved during `chat-saas-server db:sync`.
+//
+// You can:
+// - Add new models
+// - Add relations to core models (use the model name, Prisma will find it in base.prisma)
+//
+// Example:
+//
+// model BlogPost {
+//   id        String   @id @default(cuid())
+//   title     String
+//   content   String
+//   authorId  String
+//   author    User     @relation(fields: [authorId], references: [id])
+//   createdAt DateTime @default(now())
+// }
+//
+// Note: If you add a relation to a core model (like User above), you may need to
+// add the opposite relation field to that model in base.prisma. After running
+// db:sync, check for validation errors and add any missing relation fields.
+// =============================================================================

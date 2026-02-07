@@ -1,6 +1,6 @@
 {
   "name": "@chaaskit/client",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "React frontend client for ChaasKit AI chat applications",
   "license": "MIT",
   "author": "Matt Ferrante <@ferrants>",
@@ -13,7 +13,15 @@
   "bugs": {
     "url": "https://github.com/ferrants/chaaskit/issues"
   },
-  "keywords": ["chaaskit", "ai", "chat", "saas", "client", "react", "vite"],
+  "keywords": [
+    "chaaskit",
+    "ai",
+    "chat",
+    "saas",
+    "client",
+    "react",
+    "vite"
+  ],
   "type": "module",
   "exports": {
     ".": {
@@ -61,7 +69,7 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
-    "@chaaskit/shared": "^0.1.1",
+    "@chaaskit/shared": "^0.1.2",
     "lucide-react": "^0.321.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",

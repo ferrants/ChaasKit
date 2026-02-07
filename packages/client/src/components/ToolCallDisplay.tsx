@@ -19,6 +19,8 @@ const AUTO_APPROVE_LABELS: Record<AutoApproveReason, string> = {
   thread_allowed: 'Allowed for this chat',
 };
 
+const TOOL_UI_MESSAGE_SOURCE = 'chaaskit-tool-ui';
+
 // Generate the window.openai initialization script for OpenAI format resources
 function generateOpenAiScript(
   toolInput: Record<string, unknown>,
@@ -68,6 +70,46 @@ function generateOpenAiScript(
 </style>
 <script>
 (function() {
+  const MESSAGE_SOURCE = '${TOOL_UI_MESSAGE_SOURCE}';
+  let requestId = 0;
+  const pending = new Map();
+
+  function resolvePending(id, data) {
+    const entry = pending.get(id);
+    if (!entry) return;
+    pending.delete(id);
+    if (data && data.ok) {
+      entry.resolve(data.result);
+      return;
+    }
+    entry.resolve({ error: (data && data.error) || 'Tool UI bridge error' });
+  }
+
+  window.addEventListener('message', (event) => {
+    const data = event.data || {};
+    if (data.source !== MESSAGE_SOURCE || !data.id) return;
+    resolvePending(data.id, data);
+  });
+
+  function sendToParent(type, payload, timeoutMs = 15000) {
+    return new Promise((resolve) => {
+      const id = String(Date.now()) + '-' + String(requestId++);
+      pending.set(id, { resolve });
+      try {
+        window.parent.postMessage({ source: MESSAGE_SOURCE, type, id, payload }, '*');
+      } catch (err) {
+        pending.delete(id);
+        resolve({ error: 'Unable to reach host window' });
+        return;
+      }
+      setTimeout(() => {
+        if (!pending.has(id)) return;
+        pending.delete(id);
+        resolve({ error: 'Tool UI request timed out' });
+      }, timeoutMs);
+    });
+  }
+
   // Initialize window.openai with the OpenAI Apps SDK spec
   window.openai = {
     // Core globals
@@ -92,17 +134,20 @@ function generateOpenAiScript(
     // API methods
     callTool: async (name, args) => {
       console.log('window.openai.callTool called:', { name, args });
-      // TODO: Implement actual tool calling via parent window messaging
-      return {
-        content: [{ type: 'text', text: 'Tool calling not yet implemented' }],
-        isError: false
-      };
+      const response = await sendToParent('callTool', { name, args });
+      if (response && response.error) {
+        return {
+          content: [{ type: 'text', text: response.error }],
+          isError: true
+        };
+      }
+      return response || { content: [{ type: 'text', text: 'No response from host' }], isError: true };
     },
 
     sendFollowUpMessage: async (args) => {
       console.log('window.openai.sendFollowUpMessage called:', args);
-      // TODO: Implement via parent window messaging
-      return {};
+      const response = await sendToParent('sendFollowUpMessage', args);
+      return response && response.error ? { error: response.error } : (response || {});
     },
 
     openExternal: (payload) => {
@@ -114,27 +159,41 @@ function generateOpenAiScript(
 
     requestDisplayMode: async (args) => {
       console.log('window.openai.requestDisplayMode called:', args);
-      return { mode: args.mode };
+      const response = await sendToParent('requestDisplayMode', args);
+      if (response && response.error) {
+        return { mode: args.mode };
+      }
+      return response || { mode: args.mode };
     },
 
     setWidgetState: async (state) => {
       console.log('window.openai.setWidgetState called:', state);
       window.openai.widgetState = state;
-      return {};
+      const response = await sendToParent('setWidgetState', state);
+      return response && response.error ? {} : (response || {});
     },
 
     requestClose: () => {
       console.log('window.openai.requestClose called');
+      sendToParent('requestClose', {});
     },
 
     getFileDownloadUrl: async ({ fileId }) => {
       console.log('window.openai.getFileDownloadUrl called:', fileId);
-      return { url: '' };
+      const response = await sendToParent('getFileDownloadUrl', { fileId });
+      if (response && response.error) {
+        return { url: '' };
+      }
+      return response || { url: '' };
     },
 
     uploadFile: async (file) => {
       console.log('window.openai.uploadFile called:', file);
-      return { fileId: '' };
+      const response = await sendToParent('uploadFile', { file });
+      if (response && response.error) {
+        return { fileId: '' };
+      }
+      return response || { fileId: '' };
     }
   };
 
@@ -199,6 +258,36 @@ export function UIResourceWidget({ uiResource, theme }: { uiResource: UIResource
 }
 
 export default function ToolCallDisplay({ toolCall, toolResult, isPending, uiResource, hideUiResource, autoApproveReason }: ToolCallDisplayProps) {
+  useEffect(() => {
+    async function handleMessage(event: MessageEvent) {
+      const data = event.data || {};
+      if (data.source !== TOOL_UI_MESSAGE_SOURCE || !data.id) return;
+
+      const targetOrigin = event.origin && event.origin !== 'null' ? event.origin : '*';
+
+      try {
+        const handler = (window as unknown as { chaaskitToolUiHandler?: (payload: unknown) => Promise<unknown> }).chaaskitToolUiHandler;
+        const result = typeof handler === 'function'
+          ? await handler({ type: data.type, payload: data.payload })
+          : { error: 'Tool UI bridge not configured' };
+
+        event.source?.postMessage(
+          { source: TOOL_UI_MESSAGE_SOURCE, id: data.id, ok: true, result },
+          targetOrigin
+        );
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Tool UI bridge error';
+        event.source?.postMessage(
+          { source: TOOL_UI_MESSAGE_SOURCE, id: data.id, ok: false, error: message },
+          targetOrigin
+        );
+      }
+    }
+
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
+  }, []);
+
   // Check if we have HTML content to render
   const hasHtmlResource = !hideUiResource && uiResource?.text &&
     (uiResource.mimeType?.includes('html') || uiResource.text.trim().startsWith('<'));

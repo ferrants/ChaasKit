@@ -45,6 +45,8 @@ export { default as AdminDashboardRoute, meta as adminDashboardMeta, links as ad
 export { default as AdminUsersRoute, meta as adminUsersMeta, links as adminUsersLinks, LoadingSkeleton as AdminUsersLoadingSkeleton } from './AdminUsersRoute';
 export { default as AdminTeamsRoute, meta as adminTeamsMeta, links as adminTeamsLinks, LoadingSkeleton as AdminTeamsLoadingSkeleton } from './AdminTeamsRoute';
 export { default as AdminTeamRoute, meta as adminTeamMeta, links as adminTeamLinks, LoadingSkeleton as AdminTeamLoadingSkeleton } from './AdminTeamRoute';
+export { default as AdminWaitlistRoute, meta as adminWaitlistMeta, links as adminWaitlistLinks, LoadingSkeleton as AdminWaitlistLoadingSkeleton } from './AdminWaitlistRoute';
+export { default as AdminPromoCodesRoute, meta as adminPromoCodesMeta, links as adminPromoCodesLinks, LoadingSkeleton as AdminPromoCodesLoadingSkeleton } from './AdminPromoCodesRoute';
 
 // Auth-related routes
 export { default as VerifyEmailRoute, meta as verifyEmailMeta, links as verifyEmailLinks, LoadingSkeleton as VerifyEmailLoadingSkeleton } from './VerifyEmailRoute';

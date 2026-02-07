@@ -162,6 +162,52 @@ If you didn't create an account with ${config.app.name}, you can safely ignore t
 }
 
 /**
+ * Generate magic link email HTML
+ */
+export function generateMagicLinkEmailHtml(
+  magicLinkUrl: string,
+  config: AppConfig
+): string {
+  const content = `
+    <div class="header">
+      <h1>Sign in with magic link</h1>
+    </div>
+    <div class="content">
+      <p>Click the button below to sign in to ${config.app.name}:</p>
+      <div class="button-container">
+        <a href="${magicLinkUrl}" class="button">Sign In</a>
+      </div>
+      <div class="divider"></div>
+      <p class="muted">This link will expire soon. If you didn't request this email, you can safely ignore it.</p>
+      <p class="muted">If you can't click the button, copy and paste this link into your browser:</p>
+      <p class="muted" style="word-break: break-all;">${magicLinkUrl}</p>
+    </div>
+  `;
+
+  return wrapInEmailTemplate(content, {
+    appName: config.app.name,
+    appUrl: config.app.url,
+  });
+}
+
+/**
+ * Generate magic link email plain text
+ */
+export function generateMagicLinkEmailText(
+  magicLinkUrl: string,
+  config: AppConfig
+): string {
+  return `
+Sign in with magic link
+
+Click the link below to sign in to ${config.app.name}:
+${magicLinkUrl}
+
+This link will expire soon. If you didn't request this email, you can safely ignore it.
+`.trim();
+}
+
+/**
  * Generate team invitation email HTML
  */
 export function generateTeamInviteEmailHtml(
@@ -221,5 +267,112 @@ ${inviteUrl}
 This invitation will expire in 7 days.
 
 If you don't have an account yet, you'll be able to create one when you accept the invitation.
+`.trim();
+}
+
+/**
+ * Generate app invitation email HTML
+ */
+export function generateAppInviteEmailHtml(
+  inviteUrl: string,
+  expiresInDays: number,
+  config: AppConfig
+): string {
+  const content = `
+    <div class="header">
+      <h1>You're invited</h1>
+    </div>
+    <div class="content">
+      <p>You’ve been invited to join ${config.app.name}.</p>
+      <p>Click the button below to create your account:</p>
+      <div class="button-container">
+        <a href="${inviteUrl}" class="button">Accept Invitation</a>
+      </div>
+      <div class="divider"></div>
+      <p class="muted">This invitation will expire in ${expiresInDays} days.</p>
+      <p class="muted">If you can't click the button, copy and paste this link into your browser:</p>
+      <p class="muted" style="word-break: break-all;">${inviteUrl}</p>
+    </div>
+  `;
+
+  return wrapInEmailTemplate(content, {
+    appName: config.app.name,
+    appUrl: config.app.url,
+  });
+}
+
+/**
+ * Generate app invitation email plain text
+ */
+export function generateAppInviteEmailText(
+  inviteUrl: string,
+  expiresInDays: number,
+  config: AppConfig
+): string {
+  return `
+You're invited
+
+You've been invited to join ${config.app.name}.
+
+Accept the invitation by visiting this link:
+${inviteUrl}
+
+This invitation will expire in ${expiresInDays} days.
+`.trim();
+}
+
+interface PaymentFailedTemplateParams {
+  subjectName: string;
+  amountDue?: string;
+  invoiceUrl?: string | null;
+}
+
+/**
+ * Generate payment failed email HTML
+ */
+export function generatePaymentFailedEmailHtml(
+  params: PaymentFailedTemplateParams,
+  config: AppConfig
+): string {
+  const amountLine = params.amountDue ? `<p><strong>Amount due:</strong> ${params.amountDue}</p>` : '';
+  const invoiceLine = params.invoiceUrl
+    ? `<p class="muted">View invoice: <a href="${params.invoiceUrl}">${params.invoiceUrl}</a></p>`
+    : '';
+
+  const content = `
+    <div class="header">
+      <h1>Payment failed</h1>
+    </div>
+    <div class="content">
+      <p>We were unable to process the payment for ${params.subjectName} on ${config.app.name}.</p>
+      ${amountLine}
+      <p>Please update your payment method to avoid service interruption.</p>
+      ${invoiceLine}
+    </div>
+  `;
+
+  return wrapInEmailTemplate(content, {
+    appName: config.app.name,
+    appUrl: config.app.url,
+  });
+}
+
+/**
+ * Generate payment failed email plain text
+ */
+export function generatePaymentFailedEmailText(
+  params: PaymentFailedTemplateParams,
+  config: AppConfig
+): string {
+  const amountLine = params.amountDue ? `Amount due: ${params.amountDue}\n` : '';
+  const invoiceLine = params.invoiceUrl ? `View invoice: ${params.invoiceUrl}\n` : '';
+
+  return `
+Payment failed
+
+We were unable to process the payment for ${params.subjectName} on ${config.app.name}.
+${amountLine}
+Please update your payment method to avoid service interruption.
+${invoiceLine}
 `.trim();
 }

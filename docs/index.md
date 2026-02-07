@@ -77,6 +77,7 @@ my-app/
 
 ### Core Features
 - [Authentication](./authentication.md) - Email/password, OAuth, Magic Links
+- [Signup Gating and Waitlist](./authentication.md#signup-gating-and-waitlist) - Invite-only and capped signups
 - [API Keys](./api-keys.md) - Programmatic API access
 - [Mentionable Documents](./documents.md) - Reference documents in chat with @mentions
 - [MCP Integration](./mcp.md) - Connect AI to external tools via Model Context Protocol
@@ -115,7 +116,10 @@ my-app/
 - **Job Queue**: Background job processing with scheduling
 - **Theming**: Light/dark mode with customizable colors
 - **Authentication**: Email/password, OAuth, Magic Links
+- **Signup Gating and Waitlist**: Invite-only, closed, timed, or capacity-limited signups
 - **API Keys**: Programmatic API access
+- **Credits and Promo Codes**: Ledger-based credits with expirations and promo codes
+- **Usage Metering**: Prompt and completion token tracking
 - **Payments**: Stripe integration for subscriptions
 - **Search & Export**: Full-text search and chat export
 

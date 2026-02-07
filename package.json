@@ -1,6 +1,6 @@
 {
   "name": "chaaskit-monorepo",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "private": true,
   "description": "A configurable, production-ready AI Chat SaaS template",
   "license": "MIT",
@@ -17,6 +17,9 @@
     "dev": "concurrently -n server,client -c blue,green \"pnpm --filter @chaaskit/server dev\" \"pnpm --filter @chaaskit/client dev\"",
     "dev:demo": "./scripts/dev-demo.sh",
     "build": "pnpm -r build",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:script": "./scripts/test.sh",
     "db:generate": "pnpm --filter @chaaskit/db generate",
     "db:push": "pnpm --filter @chaaskit/db push",
     "db:migrate": "pnpm --filter @chaaskit/db migrate",
@@ -32,8 +35,12 @@
   },
   "devDependencies": {
     "@changesets/cli": "^2.29.8",
+    "@types/supertest": "^2.0.16",
     "concurrently": "^8.2.2",
-    "typescript": "^5.3.3"
+    "supertest": "^6.3.4",
+    "typescript": "^5.3.3",
+    "vitest": "^2.1.8",
+    "@vitest/coverage-v8": "^2.1.8"
   },
   "engines": {
     "node": ">=18.0.0",

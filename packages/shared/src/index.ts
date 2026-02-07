@@ -10,6 +10,7 @@ export * from './types/auth.js';
 export * from './types/team.js';
 export * from './types/project.js';
 export * from './types/admin.js';
+export * from './types/credits.js';
 export * from './types/documents.js';
 export * from './types/scheduled-prompt.js';
 

@@ -11,9 +11,24 @@ import type {
   AdminTeam,
   AdminTeamDetails,
   AdminTeamMember,
+  AdminWaitlistResponse,
+  AdminWaitlistInviteResponse,
+  AdminPromoCodesResponse,
+  AdminCreatePromoCodeRequest,
+  AdminCreatePromoCodeResponse,
+  AdminUpdatePromoCodeRequest,
+  AdminUpdatePromoCodeResponse,
 } from '@chaaskit/shared';
 import { requireAuth, requireAdmin } from '../middleware/auth.js';
 import { AppError } from '../middleware/errorHandler.js';
+import { getConfig } from '../config/loader.js';
+import { listWaitlist, createInviteForWaitlistEntry } from '../services/waitlist.js';
+import {
+  generateAppInviteEmailHtml,
+  generateAppInviteEmailText,
+  isEmailEnabled,
+  sendEmail,
+} from '../services/email/index.js';
 
 export const adminRouter = Router();
 
@@ -140,6 +155,228 @@ adminRouter.get('/usage', async (req, res, next) => {
       usage,
       period: periodParam as 'day' | 'week' | 'month',
     });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Get waitlist entries
+adminRouter.get('/waitlist', async (_req, res, next) => {
+  try {
+    const { entries, total } = await listWaitlist();
+    const response: AdminWaitlistResponse = {
+      entries: entries.map((entry) => ({
+        id: entry.id,
+        email: entry.email,
+        name: entry.name,
+        status: entry.status as 'pending' | 'invited' | 'removed',
+        createdAt: entry.createdAt,
+        invitedAt: entry.invitedAt,
+        invitedByUserId: entry.invitedByUserId,
+      })),
+      total,
+    };
+    res.json(response);
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Invite waitlist entry
+adminRouter.post('/waitlist/:id/invite', async (req, res, next) => {
+  try {
+    const config = getConfig();
+    const entryId = req.params.id;
+
+    const invite = await createInviteForWaitlistEntry({
+      entryId,
+      createdByUserId: req.user!.id,
+    });
+
+    if (!invite) {
+      throw new AppError(HTTP_STATUS.NOT_FOUND, 'Waitlist entry not found');
+    }
+
+    const appUrl = config.app.url.replace(/\/$/, '');
+    const inviteUrl = `${appUrl}/register?invite=${invite.token}`;
+    const expiresInDays = config.auth.gating?.inviteExpiryDays ?? 7;
+
+    if (isEmailEnabled()) {
+      const html = generateAppInviteEmailHtml(inviteUrl, expiresInDays, config);
+      const text = generateAppInviteEmailText(inviteUrl, expiresInDays, config);
+      await sendEmail({
+        to: invite.email,
+        subject: `You're invited to ${config.app.name}`,
+        html,
+        text,
+      });
+    } else {
+      console.log(`[Admin] Email disabled - invitation URL for ${invite.email}: ${inviteUrl}`);
+    }
+
+    const response: AdminWaitlistInviteResponse = {
+      inviteToken: invite.token,
+      inviteUrl,
+    };
+
+    res.json(response);
+  } catch (error) {
+    next(error);
+  }
+});
+
+const promoCodeSchema = z.object({
+  code: z.string().min(3),
+  credits: z.number().int().positive(),
+  maxUses: z.number().int().positive(),
+  startsAt: z.string().datetime().optional(),
+  endsAt: z.string().datetime().optional(),
+  creditsExpiresAt: z.string().datetime().optional(),
+});
+
+const promoCodeUpdateSchema = z.object({
+  credits: z.number().int().positive().optional(),
+  maxUses: z.number().int().positive().optional(),
+  startsAt: z.string().datetime().nullable().optional(),
+  endsAt: z.string().datetime().nullable().optional(),
+  creditsExpiresAt: z.string().datetime().nullable().optional(),
+});
+
+// List promo codes
+adminRouter.get('/promo-codes', async (req, res, next) => {
+  try {
+    const search = (req.query.search as string | undefined)?.trim();
+    const promoCodes = await db.promoCode.findMany({
+      where: search
+        ? {
+            code: {
+              contains: search,
+              mode: 'insensitive',
+            },
+          }
+        : undefined,
+      orderBy: { createdAt: 'desc' },
+      include: { redemptions: true },
+    });
+
+    const statusFilter = (req.query.status as string | undefined) ?? 'all';
+    const now = new Date();
+    const filtered = promoCodes.filter((promo) => {
+      if (statusFilter === 'all') return true;
+      const startsAt = promo.startsAt;
+      const endsAt = promo.endsAt;
+      const active = (!startsAt || startsAt <= now) && (!endsAt || endsAt >= now);
+      const scheduled = !!startsAt && startsAt > now;
+      const expired = !!endsAt && endsAt < now;
+
+      if (statusFilter === 'active') return active;
+      if (statusFilter === 'scheduled') return scheduled;
+      if (statusFilter === 'expired') return expired;
+      return true;
+    });
+
+    const response: AdminPromoCodesResponse = {
+      promoCodes: filtered.map((promo) => ({
+        id: promo.id,
+        code: promo.code,
+        credits: promo.credits,
+        maxUses: promo.maxUses,
+        redeemedCount: promo.redemptions.length,
+        startsAt: promo.startsAt,
+        endsAt: promo.endsAt,
+        creditsExpiresAt: promo.creditsExpiresAt,
+        createdAt: promo.createdAt,
+      })),
+    };
+
+    res.json(response);
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Create promo code
+adminRouter.post('/promo-codes', async (req, res, next) => {
+  try {
+    const config = getConfig();
+    if (!config.credits?.enabled || !config.credits.promoEnabled) {
+      throw new AppError(HTTP_STATUS.BAD_REQUEST, 'Promo codes are disabled');
+    }
+
+    const payload = promoCodeSchema.parse(req.body as AdminCreatePromoCodeRequest);
+    const code = payload.code.trim().toUpperCase();
+
+    const existing = await db.promoCode.findUnique({ where: { code } });
+    if (existing) {
+      throw new AppError(HTTP_STATUS.CONFLICT, 'Promo code already exists');
+    }
+
+    const promo = await db.promoCode.create({
+      data: {
+        code,
+        credits: payload.credits,
+        maxUses: payload.maxUses,
+        startsAt: payload.startsAt ? new Date(payload.startsAt) : undefined,
+        endsAt: payload.endsAt ? new Date(payload.endsAt) : undefined,
+        creditsExpiresAt: payload.creditsExpiresAt ? new Date(payload.creditsExpiresAt) : undefined,
+      },
+    });
+
+    const response: AdminCreatePromoCodeResponse = {
+      promoCode: {
+        id: promo.id,
+        code: promo.code,
+        credits: promo.credits,
+        maxUses: promo.maxUses,
+        redeemedCount: 0,
+        startsAt: promo.startsAt,
+        endsAt: promo.endsAt,
+        creditsExpiresAt: promo.creditsExpiresAt,
+        createdAt: promo.createdAt,
+      },
+    };
+
+    res.status(HTTP_STATUS.CREATED).json(response);
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Update promo code
+adminRouter.patch('/promo-codes/:id', async (req, res, next) => {
+  try {
+    const payload = promoCodeUpdateSchema.parse(req.body as AdminUpdatePromoCodeRequest);
+    const promo = await db.promoCode.update({
+      where: { id: req.params.id },
+      data: {
+        credits: payload.credits ?? undefined,
+        maxUses: payload.maxUses ?? undefined,
+        startsAt: payload.startsAt === undefined ? undefined : payload.startsAt ? new Date(payload.startsAt) : null,
+        endsAt: payload.endsAt === undefined ? undefined : payload.endsAt ? new Date(payload.endsAt) : null,
+        creditsExpiresAt: payload.creditsExpiresAt === undefined
+          ? undefined
+          : payload.creditsExpiresAt
+            ? new Date(payload.creditsExpiresAt)
+            : null,
+      },
+      include: { redemptions: true },
+    });
+
+    const response: AdminUpdatePromoCodeResponse = {
+      promoCode: {
+        id: promo.id,
+        code: promo.code,
+        credits: promo.credits,
+        maxUses: promo.maxUses,
+        redeemedCount: promo.redemptions.length,
+        startsAt: promo.startsAt,
+        endsAt: promo.endsAt,
+        creditsExpiresAt: promo.creditsExpiresAt,
+        createdAt: promo.createdAt,
+      },
+    };
+
+    res.json(response);
   } catch (error) {
     next(error);
   }

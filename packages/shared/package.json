@@ -1,6 +1,6 @@
 {
   "name": "@chaaskit/shared",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Shared TypeScript types and Zod validation schemas for ChaasKit",
   "license": "MIT",
   "author": "Matt Ferrante <@ferrants>",
@@ -13,7 +13,14 @@
   "bugs": {
     "url": "https://github.com/ferrants/chaaskit/issues"
   },
-  "keywords": ["chaaskit", "ai", "chat", "saas", "types", "validation"],
+  "keywords": [
+    "chaaskit",
+    "ai",
+    "chat",
+    "saas",
+    "types",
+    "validation"
+  ],
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",

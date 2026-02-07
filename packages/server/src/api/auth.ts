@@ -13,7 +13,20 @@ import {
   sendEmail,
   generateVerificationEmailHtml,
   generateVerificationEmailText,
+  generateMagicLinkEmailHtml,
+  generateMagicLinkEmailText,
 } from '../services/email/index.js';
+import {
+  addToWaitlist,
+  validateInviteToken,
+  consumeInviteToken,
+  evaluateSignupGate,
+} from '../services/waitlist.js';
+import {
+  createReferralFromCode,
+  ensureReferralCodeForUser,
+  grantReferralCreditsIfEligible,
+} from '../services/referrals.js';
 
 export const authRouter = Router();
 
@@ -94,6 +107,8 @@ const registerSchema = z.object({
   email: z.string().email(),
   password: z.string().min(8),
   name: z.string().optional(),
+  inviteToken: z.string().optional(),
+  referralCode: z.string().optional(),
 });
 
 const loginSchema = z.object({
@@ -103,6 +118,12 @@ const loginSchema = z.object({
 
 const magicLinkSchema = z.object({
   email: z.string().email(),
+  inviteToken: z.string().optional(),
+});
+
+const waitlistSchema = z.object({
+  email: z.string().email(),
+  name: z.string().optional(),
 });
 
 // Register with email/password
@@ -114,7 +135,26 @@ authRouter.post('/register', async (req, res, next) => {
       throw new AppError(HTTP_STATUS.BAD_REQUEST, 'Email/password registration is not enabled');
     }
 
-    const { email, password, name } = registerSchema.parse(req.body);
+    const { email, password, name, inviteToken, referralCode } = registerSchema.parse(req.body);
+
+    const invite = inviteToken
+      ? await validateInviteToken({ token: inviteToken, email })
+      : null;
+
+    const gating = config.auth.gating;
+    const capacityReached = gating?.mode === 'capacity_limit' && gating.capacityLimit
+      ? (await db.user.count()) >= gating.capacityLimit
+      : false;
+
+    const gate = evaluateSignupGate({ email, inviteValid: !!invite, capacityReached });
+    if (!gate.allowed) {
+      res.status(HTTP_STATUS.FORBIDDEN).json({
+        error: 'Signups are currently restricted',
+        code: gate.reason,
+        waitlistEnabled: gate.waitlistEnabled,
+      });
+      return;
+    }
 
     // Check if user exists
     const existingUser = await db.user.findUnique({
@@ -162,6 +202,21 @@ authRouter.post('/register', async (req, res, next) => {
     if (requiresVerification) {
       await createAndSendVerificationCode(user.id, user.email);
     }
+
+    if (invite) {
+      await consumeInviteToken({ token: invite.token, userId: user.id });
+    }
+
+    const referral = await createReferralFromCode({
+      referredUserId: user.id,
+      referralCode,
+    });
+
+    if (referral) {
+      await grantReferralCreditsIfEligible({ referralId: referral.referralId, event: 'signup' });
+    }
+
+    await ensureReferralCodeForUser(user.id);
 
     res.status(HTTP_STATUS.CREATED).json({
       user,
@@ -236,15 +291,40 @@ authRouter.post('/magic-link', async (req, res, next) => {
       throw new AppError(HTTP_STATUS.BAD_REQUEST, 'Magic link is not enabled');
     }
 
-    const { email } = magicLinkSchema.parse(req.body);
+    const { email, inviteToken } = magicLinkSchema.parse(req.body);
 
     // Find or create user
     let user = await db.user.findUnique({ where: { email } });
 
     if (!user) {
+      const invite = inviteToken
+        ? await validateInviteToken({ token: inviteToken, email })
+        : null;
+
+      const gating = config.auth.gating;
+      const capacityReached = gating?.mode === 'capacity_limit' && gating.capacityLimit
+        ? (await db.user.count()) >= gating.capacityLimit
+        : false;
+
+      const gate = evaluateSignupGate({ email, inviteValid: !!invite, capacityReached });
+      if (!gate.allowed) {
+        res.status(HTTP_STATUS.FORBIDDEN).json({
+          error: 'Signups are currently restricted',
+          code: gate.reason,
+          waitlistEnabled: gate.waitlistEnabled,
+        });
+        return;
+      }
+
       user = await db.user.create({
         data: { email },
       });
+
+      if (invite) {
+        await consumeInviteToken({ token: invite.token, userId: user.id });
+      }
+
+      await ensureReferralCodeForUser(user.id);
     }
 
     // Create magic link token
@@ -261,9 +341,25 @@ authRouter.post('/magic-link', async (req, res, next) => {
       },
     });
 
-    // TODO: Send email with magic link
-    // In development, log the link
-    console.log(`Magic link for ${email}: ${process.env.APP_URL}/auth/magic-link?token=${token}`);
+    const baseUrl = process.env.API_URL || config.app.url;
+    const magicLinkUrl = `${baseUrl}/api/auth/magic-link/verify?token=${token}`;
+
+    const html = generateMagicLinkEmailHtml(magicLinkUrl, config);
+    const text = generateMagicLinkEmailText(magicLinkUrl, config);
+
+    const result = await sendEmail({
+      to: email,
+      subject: `Your ${config.app.name} magic link`,
+      html,
+      text,
+    });
+
+    if (result) {
+      console.log(`[Auth] Magic link email sent to ${email} (messageId: ${result.messageId})`);
+    } else {
+      // Email disabled - log the link for development
+      console.log(`[Auth] Email disabled - magic link for ${email}: ${magicLinkUrl}`);
+    }
 
     res.json({ message: 'Magic link sent' });
   } catch (error) {
@@ -329,6 +425,23 @@ authRouter.get('/magic-link/verify', async (req, res, next) => {
 authRouter.post('/logout', (req, res) => {
   res.clearCookie('token');
   res.json({ message: 'Logged out' });
+});
+
+// Join waitlist
+authRouter.post('/waitlist', async (req, res, next) => {
+  try {
+    const { email, name } = waitlistSchema.parse(req.body);
+    const config = getConfig();
+
+    if (!config.auth.gating?.waitlistEnabled) {
+      throw new AppError(HTTP_STATUS.BAD_REQUEST, 'Waitlist is not enabled');
+    }
+
+    const entry = await addToWaitlist({ email, name });
+    res.status(HTTP_STATUS.CREATED).json({ entry });
+  } catch (error) {
+    next(error);
+  }
 });
 
 // Get current user

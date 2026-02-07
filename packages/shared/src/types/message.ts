@@ -50,6 +50,7 @@ export interface ToolResult {
   content: MCPContent[];
   isError?: boolean;
   uiResource?: UIResource;
+  structuredContent?: Record<string, unknown>;
 }
 
 export interface MCPContent {
@@ -76,6 +77,7 @@ export interface StreamingMessage {
   toolResult?: ToolResult;
   usage?: MessageUsage;
   error?: string;
+  structuredContent?: Record<string, unknown>;
   // Tool confirmation fields
   confirmationId?: string;
   serverId?: string;

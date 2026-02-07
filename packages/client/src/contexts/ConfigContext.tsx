@@ -1,10 +1,10 @@
 import { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
-import type { AppConfig } from '@chaaskit/shared';
+import type { PublicAppConfig } from '@chaaskit/shared';
 
 // Declare global window property for SSR-injected config
 declare global {
   interface Window {
-    __CHAASKIT_CONFIG__?: AppConfig;
+    __CHAASKIT_CONFIG__?: PublicAppConfig;
   }
 }
 
@@ -13,7 +13,7 @@ declare global {
  * This allows the config to be available immediately on page load,
  * avoiding flash of default values.
  */
-function getInjectedConfig(): AppConfig | undefined {
+function getInjectedConfig(): PublicAppConfig | undefined {
   if (typeof window !== 'undefined' && window.__CHAASKIT_CONFIG__) {
     return window.__CHAASKIT_CONFIG__;
   }
@@ -21,11 +21,12 @@ function getInjectedConfig(): AppConfig | undefined {
 }
 
 // Default config - used as fallback while loading
-const defaultConfig: AppConfig = {
+const defaultConfig: PublicAppConfig = {
   app: {
     name: 'AI Chat',
     description: 'Your AI assistant',
     url: 'http://localhost:5173',
+    basePath: '/chat',
   },
   ui: {
     welcomeTitle: 'Welcome to AI Chat',
@@ -109,27 +110,14 @@ const defaultConfig: AppConfig = {
       enabled: true,
       expiresInMinutes: 15,
     },
-  },
-  agent: {
-    type: 'built-in',
-    provider: 'anthropic',
-    model: 'claude-sonnet-4-20250514',
-    systemPrompt: 'You are a helpful AI assistant.',
-    maxTokens: 4096,
+    gating: {
+      mode: 'open',
+      waitlistEnabled: false,
+    },
   },
   payments: {
     enabled: false,
     provider: 'stripe',
-    plans: [
-      {
-        id: 'free',
-        name: 'Free',
-        type: 'free',
-        params: {
-          monthlyMessageLimit: 20,
-        },
-      },
-    ],
   },
   legal: {
     privacyPolicyUrl: '/privacy',
@@ -158,7 +146,6 @@ const defaultConfig: AppConfig = {
   },
   promptTemplates: {
     enabled: true,
-    builtIn: [],
     allowUserTemplates: true,
   },
   teams: {
@@ -166,9 +153,6 @@ const defaultConfig: AppConfig = {
   },
   documents: {
     enabled: false,
-    storage: {
-      provider: 'database',
-    },
     maxFileSizeMB: 10,
     hybridThreshold: 1000,
     acceptedTypes: ['text/plain', 'text/markdown', 'application/json'],
@@ -180,10 +164,19 @@ const defaultConfig: AppConfig = {
   api: {
     enabled: false,
   },
+  credits: {
+    enabled: false,
+    expiryEnabled: false,
+    promoEnabled: false,
+  },
+  metering: {
+    enabled: false,
+    recordPromptCompletion: true,
+  },
 };
 
 interface ConfigContextValue {
-  config: AppConfig;
+  config: PublicAppConfig;
   configLoaded: boolean;
 }
 
@@ -199,7 +192,7 @@ interface ConfigProviderProps {
    * If provided, the config will not be fetched from /api/config.
    * Useful when config is available from SSR loaders.
    */
-  initialConfig?: AppConfig;
+  initialConfig?: PublicAppConfig;
 }
 
 export function ConfigProvider({ children, initialConfig }: ConfigProviderProps) {
@@ -207,7 +200,7 @@ export function ConfigProvider({ children, initialConfig }: ConfigProviderProps)
   const injectedConfig = getInjectedConfig();
   const preloadedConfig = initialConfig || injectedConfig;
 
-  const [config, setConfig] = useState<AppConfig>(
+  const [config, setConfig] = useState<PublicAppConfig>(
     preloadedConfig ? { ...defaultConfig, ...preloadedConfig } : defaultConfig
   );
   const [configLoaded, setConfigLoaded] = useState(!!preloadedConfig);

@@ -1,5 +1,6 @@
 // Import styles for CSS extraction during build
 import './styles/index.css';
+import './components/tool-renderers';
 
 // ClientOnly and Loading Skeletons for SSR-safe rendering
 export { ClientOnly } from './components/ClientOnly';
@@ -65,13 +66,15 @@ export { default as AdminDashboardPage } from './pages/AdminDashboardPage';
 export { default as AdminUsersPage } from './pages/AdminUsersPage';
 export { default as AdminTeamsPage } from './pages/AdminTeamsPage';
 export { default as AdminTeamPage } from './pages/AdminTeamPage';
+export { default as AdminWaitlistPage } from './pages/AdminWaitlistPage';
+export { default as AdminPromoCodesPage } from './pages/AdminPromoCodesPage';
 
 // ============================================
 // ChatProviders - Wraps the chat app with all required providers
 // Use in React Router routes that render the chat interface
 // ============================================
 import React from 'react';
-import type { AppConfig } from '@chaaskit/shared';
+import type { PublicAppConfig } from '@chaaskit/shared';
 import { AuthProvider as Auth } from './contexts/AuthContext';
 import { ThemeProvider as Theme } from './contexts/ThemeContext';
 import { ConfigProvider as Config } from './contexts/ConfigContext';
@@ -84,7 +87,7 @@ export interface ChatProvidersProps {
    * Initial config to use immediately, avoiding a flash of default values.
    * Pass the config from SSR loaders to prevent "Welcome to AI Chat" flash.
    */
-  initialConfig?: AppConfig;
+  initialConfig?: PublicAppConfig;
 }
 
 /**

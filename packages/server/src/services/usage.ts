@@ -1,6 +1,7 @@
 import { db } from '@chaaskit/db';
 import { getConfig } from '../config/loader.js';
-import type { FreePlanParams, MonthlyPlanParams, CreditsPlanParams, BillingContext } from '@chaaskit/shared';
+import { calculateCreditsCost, consumeCredits, getCreditsBalance } from './credits.js';
+import type { FreePlanParams, MonthlyPlanParams, BillingContext } from '@chaaskit/shared';
 
 export interface PlanLimits {
   monthlyMessageLimit: number;
@@ -61,24 +62,23 @@ export async function getBillingContext(userId: string, teamId?: string): Promis
       select: {
         id: true,
         plan: true,
-        credits: true,
         messagesThisMonth: true,
       },
     });
 
     if (team) {
       const teamPlanConfig = config.payments.plans.find((p) => p.id === team.plan);
-      // Use team billing if team has an active plan (not 'free' or explicitly team-scoped)
-      const teamHasActivePlan = team.plan !== 'free' || (teamPlanConfig?.scope === 'team' || teamPlanConfig?.scope === 'both');
+      const teamUsesPlan = team.plan !== 'free' || (teamPlanConfig?.scope === 'team' || teamPlanConfig?.scope === 'both');
 
       // Check if team has a paid plan or if the team's free plan should be used
-      if (team.plan !== 'free' || teamPlanConfig?.scope === 'team') {
+      if (teamUsesPlan) {
         const limits = getPlanLimits(team.plan);
+        const credits = await getCreditsBalance('team', team.id);
         return {
           type: 'team',
           entityId: team.id,
           plan: team.plan,
-          credits: team.credits,
+          credits: credits.balance,
           messagesThisMonth: team.messagesThisMonth,
           monthlyLimit: limits.monthlyMessageLimit,
         };
@@ -92,7 +92,6 @@ export async function getBillingContext(userId: string, teamId?: string): Promis
     select: {
       id: true,
       plan: true,
-      credits: true,
       messagesThisMonth: true,
     },
   });
@@ -102,11 +101,12 @@ export async function getBillingContext(userId: string, teamId?: string): Promis
   }
 
   const limits = getPlanLimits(user.plan);
+  const credits = await getCreditsBalance('user', user.id);
   return {
     type: 'personal',
     entityId: user.id,
     plan: user.plan,
-    credits: user.credits,
+    credits: credits.balance,
     messagesThisMonth: user.messagesThisMonth,
     monthlyLimit: limits.monthlyMessageLimit,
   };
@@ -130,7 +130,10 @@ export async function checkUsageLimits(userId: string, teamId?: string): Promise
 
   // Unlimited plan
   if (context.monthlyLimit === -1) {
-    return true;
+    if (!config.credits?.enabled) {
+      return false;
+    }
+    return context.credits > 0;
   }
 
   // Check monthly limit
@@ -139,7 +142,7 @@ export async function checkUsageLimits(userId: string, teamId?: string): Promise
   }
 
   // Check if entity has credits
-  if (context.credits > 0) {
+  if (config.credits?.enabled && context.credits > 0) {
     return true;
   }
 
@@ -151,7 +154,11 @@ export async function checkUsageLimits(userId: string, teamId?: string): Promise
  * For team threads with team billing, increments team's usage.
  * Otherwise, increments user's personal usage.
  */
-export async function incrementUsage(userId: string, teamId?: string): Promise<void> {
+export async function incrementUsage(
+  userId: string,
+  teamId?: string,
+  usage?: { inputTokens?: number; outputTokens?: number }
+): Promise<void> {
   const config = getConfig();
 
   if (!config.payments.enabled) {
@@ -162,6 +169,9 @@ export async function incrementUsage(userId: string, teamId?: string): Promise<v
   if (!context) {
     return;
   }
+
+  const totalTokens = (usage?.inputTokens ?? 0) + (usage?.outputTokens ?? 0);
+  const creditsCost = calculateCreditsCost(totalTokens);
 
   // If unlimited plan, increment monthly usage for tracking purposes
   if (context.monthlyLimit === -1) {
@@ -177,6 +187,19 @@ export async function incrementUsage(userId: string, teamId?: string): Promise<v
         where: { id: context.entityId },
         data: {
           messagesThisMonth: { increment: 1 },
+        },
+      });
+    }
+    if (config.credits?.enabled) {
+      await consumeCredits({
+        ownerType: context.type === 'team' ? 'team' : 'user',
+        ownerId: context.entityId,
+        amount: creditsCost,
+        reason: 'usage',
+        sourceType: 'usage',
+        metadata: {
+          inputTokens: usage?.inputTokens ?? 0,
+          outputTokens: usage?.outputTokens ?? 0,
         },
       });
     }
@@ -204,22 +227,18 @@ export async function incrementUsage(userId: string, teamId?: string): Promise<v
   }
 
   // Otherwise, deduct a credit
-  if (context.credits > 0) {
-    if (context.type === 'team') {
-      await db.team.update({
-        where: { id: context.entityId },
-        data: {
-          credits: { decrement: 1 },
-        },
-      });
-    } else {
-      await db.user.update({
-        where: { id: context.entityId },
-        data: {
-          credits: { decrement: 1 },
-        },
-      });
-    }
+  if (config.credits?.enabled && context.credits > 0) {
+    await consumeCredits({
+      ownerType: context.type === 'team' ? 'team' : 'user',
+      ownerId: context.entityId,
+      amount: creditsCost,
+      reason: 'usage',
+      sourceType: 'usage',
+      metadata: {
+        inputTokens: usage?.inputTokens ?? 0,
+        outputTokens: usage?.outputTokens ?? 0,
+      },
+    });
   }
 }
 
@@ -260,7 +279,6 @@ export async function getTeamSubscription(teamId: string): Promise<{
     where: { id: teamId },
     select: {
       plan: true,
-      credits: true,
       messagesThisMonth: true,
       stripeCustomerId: true,
     },
@@ -272,13 +290,14 @@ export async function getTeamSubscription(teamId: string): Promise<{
 
   const limits = getPlanLimits(team.plan);
   const planConfig = config.payments.plans.find((p) => p.id === team.plan);
+  const credits = await getCreditsBalance('team', teamId);
 
   return {
     plan: team.plan,
     planName: planConfig?.name || 'Unknown',
     messagesThisMonth: team.messagesThisMonth,
     monthlyLimit: limits.monthlyMessageLimit,
-    credits: team.credits,
+    credits: credits.balance,
     hasStripeCustomer: !!team.stripeCustomerId,
   };
 }

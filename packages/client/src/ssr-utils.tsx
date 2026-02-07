@@ -68,29 +68,49 @@ export function ConfigScript({ config }: ConfigScriptProps) {
     auth: {
       methods: config.auth?.methods,
       allowUnauthenticated: config.auth?.allowUnauthenticated,
+      magicLink: config.auth?.magicLink,
+      emailVerification: config.auth?.emailVerification,
+      gating: config.auth?.gating,
     },
     payments: {
       enabled: config.payments?.enabled,
-      plans: config.payments?.plans?.map(plan => ({
-        id: plan.id,
-        name: plan.name,
-        type: plan.type,
-      })),
+      provider: config.payments?.provider,
     },
     legal: config.legal,
     sharing: config.sharing,
     teams: config.teams,
     projects: config.projects,
-    documents: {
-      enabled: config.documents?.enabled,
-    },
+    documents: config.documents ? {
+      enabled: config.documents.enabled,
+      maxFileSizeMB: config.documents.maxFileSizeMB,
+      hybridThreshold: config.documents.hybridThreshold,
+      acceptedTypes: config.documents.acceptedTypes,
+    } : undefined,
     api: {
       enabled: config.api?.enabled,
     },
-    promptTemplates: {
-      enabled: config.promptTemplates?.enabled,
-      allowUserTemplates: config.promptTemplates?.allowUserTemplates,
-    },
+    promptTemplates: config.promptTemplates ? {
+      enabled: config.promptTemplates.enabled,
+      allowUserTemplates: config.promptTemplates.allowUserTemplates,
+    } : undefined,
+    scheduledPrompts: config.scheduledPrompts ? {
+      enabled: config.scheduledPrompts.enabled,
+      featureName: config.scheduledPrompts.featureName,
+      allowUserPrompts: config.scheduledPrompts.allowUserPrompts,
+      allowTeamPrompts: config.scheduledPrompts.allowTeamPrompts,
+      defaultTimezone: config.scheduledPrompts.defaultTimezone,
+      defaultMaxUserPrompts: config.scheduledPrompts.defaultMaxUserPrompts,
+      defaultMaxTeamPrompts: config.scheduledPrompts.defaultMaxTeamPrompts,
+    } : undefined,
+    credits: config.credits ? {
+      enabled: config.credits.enabled,
+      expiryEnabled: config.credits.expiryEnabled,
+      promoEnabled: config.credits.promoEnabled,
+    } : undefined,
+    metering: config.metering ? {
+      enabled: config.metering.enabled,
+      recordPromptCompletion: config.metering.recordPromptCompletion,
+    } : undefined,
   };
 
   return (

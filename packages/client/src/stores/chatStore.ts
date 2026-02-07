@@ -19,6 +19,7 @@ interface CompletedToolCall extends PendingToolCall {
   result: MCPContent[];
   isError?: boolean;
   uiResource?: UIResource;
+  structuredContent?: Record<string, unknown>;
   autoApproveReason?: AutoApproveReason;
 }
 
@@ -397,6 +398,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
                         result: (data.content as unknown as MCPContent[]) || [],
                         isError: data.isError,
                         uiResource: data.uiResource,
+                        structuredContent: (data.structuredContent as Record<string, unknown> | undefined),
                       }
                     : {
                         // Fallback: create from tool_result event data (server now includes name/serverId/input)
@@ -407,6 +409,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
                         result: (data.content as unknown as MCPContent[]) || [],
                         isError: data.isError,
                         uiResource: data.uiResource,
+                        structuredContent: (data.structuredContent as Record<string, unknown> | undefined),
                       };
 
                   return {
@@ -492,6 +495,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
               content: tc.result,
               isError: tc.isError,
               uiResource: tc.uiResource,
+              structuredContent: tc.structuredContent,
             }))
           : undefined,
         createdAt: new Date(),

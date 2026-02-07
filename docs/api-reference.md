@@ -23,6 +23,7 @@ Global rate limit: 1000 requests per 15 minutes per IP (configurable in `app.con
 | POST | `/login` | - | Login with email/password |
 | POST | `/magic-link` | - | Send magic link to email |
 | GET | `/magic-link/verify` | - | Verify magic link token (`?token=`) |
+| POST | `/waitlist` | - | Join waitlist |
 | POST | `/logout` | Yes | Clear authentication session |
 | GET | `/me` | Yes | Get current authenticated user |
 | GET | `/oauth/:provider` | - | Redirect to OAuth provider (google/github) |
@@ -78,6 +79,16 @@ The chat endpoint returns Server-Sent Events:
 | PATCH | `/settings` | Yes | Update user settings |
 | GET | `/subscription` | Yes | Get subscription and plan status |
 | GET | `/usage` | Yes | Get usage info (messages, credits) |
+
+---
+
+## Credits (`/api/credits`)
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| GET | `/balance` | Yes | Get personal credits balance |
+| POST | `/redeem` | Yes | Redeem promo code |
+| POST | `/grant` | Admin | Grant credits (admin only) |
 
 ---
 
@@ -206,6 +217,11 @@ All admin endpoints require `isAdmin: true` on the user.
 | PATCH | `/users/:userId` | Update user (isAdmin, plan) |
 | GET | `/teams` | Paginated team list (query: `search`, `page`) |
 | GET | `/teams/:teamId` | Team details with members |
+| GET | `/waitlist` | List waitlist entries |
+| POST | `/waitlist/:id/invite` | Invite waitlist entry |
+| GET | `/promo-codes` | List promo codes |
+| POST | `/promo-codes` | Create promo code |
+| PATCH | `/promo-codes/:id` | Update promo code |
 
 ---
 

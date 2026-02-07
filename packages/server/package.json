@@ -1,6 +1,6 @@
 {
   "name": "@chaaskit/server",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Express.js backend server for ChaasKit AI chat applications",
   "license": "MIT",
   "author": "Matt Ferrante <@ferrants>",
@@ -13,7 +13,16 @@
   "bugs": {
     "url": "https://github.com/ferrants/chaaskit/issues"
   },
-  "keywords": ["chaaskit", "ai", "chat", "saas", "server", "express", "anthropic", "openai"],
+  "keywords": [
+    "chaaskit",
+    "ai",
+    "chat",
+    "saas",
+    "server",
+    "express",
+    "anthropic",
+    "openai"
+  ],
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -43,8 +52,8 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.71.0",
-    "@chaaskit/db": "^0.1.1",
-    "@chaaskit/shared": "^0.1.1",
+    "@chaaskit/db": "^0.1.2",
+    "@chaaskit/shared": "^0.1.2",
     "@modelcontextprotocol/sdk": "^1.0.0",
     "bcryptjs": "^2.4.3",
     "cookie-parser": "^1.4.6",

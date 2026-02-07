@@ -96,7 +96,16 @@ export async function requireAuth(
       throw new AppError(HTTP_STATUS.UNAUTHORIZED, 'User not found');
     }
 
-    req.user = user;
+    // Compute isAdmin from both database flag and config email list
+    const adminEmails = config.admin?.emails || [];
+    const isConfigAdmin = adminEmails.some(
+      (email) => email.toLowerCase() === user.email.toLowerCase()
+    );
+
+    req.user = {
+      ...user,
+      isAdmin: user.isAdmin || isConfigAdmin,
+    };
     next();
   } catch (error) {
     if (error instanceof AppError) {
@@ -150,7 +159,17 @@ export async function optionalAuth(
     });
 
     if (user) {
-      req.user = user;
+      // Compute isAdmin from both database flag and config email list
+      const config = getConfig();
+      const adminEmails = config.admin?.emails || [];
+      const isConfigAdmin = adminEmails.some(
+        (email) => email.toLowerCase() === user.email.toLowerCase()
+      );
+
+      req.user = {
+        ...user,
+        isAdmin: user.isAdmin || isConfigAdmin,
+      };
     }
 
     next();

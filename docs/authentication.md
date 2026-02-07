@@ -14,6 +14,11 @@ auth: {
     enabled: true,
     expiresInMinutes: 15,
   },
+  gating: {
+    mode: 'open',
+    inviteExpiryDays: 7,
+    waitlistEnabled: true,
+  },
 }
 ```
 
@@ -93,7 +98,25 @@ auth: {
 }
 ```
 
-**Note:** Requires email service configuration (not included by default).
+**Note:** Requires email service configuration (not included by default). Magic link emails use the `email` configuration in `config/app.config.ts` (see Configuration docs).
+
+## Signup Gating and Waitlist
+
+Signups can be restricted by mode and optionally backed by a waitlist. Invite tokens bypass gating.
+
+**Modes:**
+- `open`
+- `invite_only`
+- `closed`
+- `timed_window`
+- `capacity_limit`
+
+**Behavior:**
+- `POST /api/auth/register` and `POST /api/auth/magic-link` accept `inviteToken` to bypass gating.
+- When gating blocks signup, the API responds with `403` and includes `waitlistEnabled` so the client can offer a waitlist form.
+- Waitlist signup is via `POST /api/auth/waitlist`.
+
+See `docs/configuration.md` for gating config options and `docs/admin.md` for the admin waitlist UI.
 
 ## Anonymous Users
 

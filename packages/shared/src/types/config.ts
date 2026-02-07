@@ -6,7 +6,7 @@ export interface AppInfo {
   name: string;
   description: string;
   url: string;
-  basePath?: string;  // Optional, defaults to '/'. Use to run app under a path (e.g., '/app')
+  basePath?: string;  // Optional, defaults to '/chat'. Use to run app under a path (e.g., '/chat')
 }
 
 export interface SamplePrompt {
@@ -36,11 +36,23 @@ export interface EmailVerificationConfig {
 
 export type AuthMethod = 'email-password' | 'google' | 'github' | 'magic-link';
 
+export type AuthGatingMode = 'open' | 'invite_only' | 'closed' | 'timed_window' | 'capacity_limit';
+
+export interface AuthGatingConfig {
+  mode: AuthGatingMode;
+  inviteExpiryDays?: number; // Default: 7
+  windowStart?: string;      // ISO timestamp
+  windowEnd?: string;        // ISO timestamp
+  capacityLimit?: number;
+  waitlistEnabled?: boolean;
+}
+
 export interface AuthConfig {
   methods: AuthMethod[];
   allowUnauthenticated: boolean;
   magicLink: MagicLinkConfig;
   emailVerification?: EmailVerificationConfig;
+  gating?: AuthGatingConfig;
 }
 
 // Legacy single-agent configurations (for backward compatibility)
@@ -180,6 +192,27 @@ export interface DocumentsConfig {
   acceptedTypes: string[];  // MIME types
 }
 
+export interface ReferralTriggersConfig {
+  signup: boolean;
+  firstMessage: boolean;
+  paying: boolean;
+}
+
+export interface CreditsConfig {
+  enabled: boolean;
+  expiryEnabled?: boolean;
+  defaultExpiryDays?: number;
+  tokensPerCredit?: number;
+  referralRewardCredits?: number;
+  referralTriggers?: ReferralTriggersConfig;
+  promoEnabled?: boolean;
+}
+
+export interface MeteringConfig {
+  enabled: boolean;
+  recordPromptCompletion?: boolean;
+}
+
 // Queue Provider Configuration (discriminated union)
 export interface MemoryQueueProviderConfig {
   type: 'memory';
@@ -315,4 +348,78 @@ export interface AppConfig {
   email?: EmailConfig;
   scheduledPrompts?: ScheduledPromptsConfig;
   rateLimit?: RateLimitConfig;
+  credits?: CreditsConfig;
+  metering?: MeteringConfig;
+}
+
+export interface PublicMCPServerConfig {
+  id: string;
+  name: string;
+  transport: MCPServerConfig['transport'];
+  enabled: boolean;
+  authMode?: MCPServerConfig['authMode'];
+  userInstructions?: string;
+}
+
+export interface PublicAppConfig {
+  app: AppInfo;
+  ui: UIConfig;
+  theming: ThemeConfig;
+  auth: {
+    methods: AuthMethod[];
+    allowUnauthenticated: boolean;
+    magicLink: MagicLinkConfig;
+    emailVerification?: EmailVerificationConfig;
+    gating?: AuthGatingConfig;
+  };
+  payments: {
+    enabled: boolean;
+    provider: PaymentsConfig['provider'];
+  };
+  legal: LegalConfig;
+  userSettings: UserSettingsConfig;
+  mcp?: {
+    servers: PublicMCPServerConfig[];
+    allowUserServers: boolean;
+    toolConfirmation?: ToolConfirmationConfig;
+    toolTimeout: number;
+    showToolCalls?: boolean;
+  };
+  sharing?: SharingConfig;
+  promptTemplates?: {
+    enabled: boolean;
+    allowUserTemplates: boolean;
+  };
+  teams?: TeamsConfig;
+  projects?: ProjectsConfig;
+  documents?: {
+    enabled: boolean;
+    maxFileSizeMB?: number;
+    hybridThreshold?: number;
+    acceptedTypes?: string[];
+  };
+  api?: {
+    enabled: boolean;
+  };
+  email?: {
+    enabled: boolean;
+  };
+  credits?: {
+    enabled: boolean;
+    expiryEnabled?: boolean;
+    promoEnabled?: boolean;
+  };
+  metering?: {
+    enabled: boolean;
+    recordPromptCompletion?: boolean;
+  };
+  scheduledPrompts?: {
+    enabled: boolean;
+    featureName?: string;
+    allowUserPrompts?: boolean;
+    allowTeamPrompts?: boolean;
+    defaultTimezone?: string;
+    defaultMaxUserPrompts?: number;
+    defaultMaxTeamPrompts?: number;
+  };
 }

@@ -25,6 +25,7 @@ import { agentsRouter } from './api/agents.js';
 import { teamsRouter } from './api/teams.js';
 import { projectsRouter } from './api/projects.js';
 import { adminRouter } from './api/admin.js';
+import { creditsRouter } from './api/credits.js';
 import { apiKeysRouter } from './api/api-keys.js';
 import { openaiRouter } from './api/v1/openai.js';
 import { mcpServerRouter } from './api/mcp-server.js';
@@ -164,6 +165,7 @@ export async function createApp(options: CreateAppOptions = {}): Promise<express
   app.use('/api/teams', teamsRouter);
   app.use('/api/projects', projectsRouter);
   app.use('/api/admin', adminRouter);
+  app.use('/api/credits', creditsRouter);
   app.use('/api/api-keys', apiKeysRouter);
   app.use('/api/documents', documentsRouter);
   app.use('/api/mentions', mentionsRouter);

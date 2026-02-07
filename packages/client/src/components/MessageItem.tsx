@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Copy, Check, RefreshCw, ThumbsUp, ThumbsDown, User, Bot, GitBranch } from 'lucide-react';
 import { useNavigate } from 'react-router';
 import type { Message } from '@chaaskit/shared';
@@ -6,6 +6,7 @@ import { useChatStore } from '../stores/chatStore';
 import { useTheme } from '../contexts/ThemeContext';
 import { useConfig } from '../contexts/ConfigContext';
 import { useAppPath } from '../hooks/useAppPath';
+import { useExtensionTools } from '../extensions/useExtensions';
 import MarkdownRenderer from './content/MarkdownRenderer';
 import ToolCallDisplay, { UIResourceWidget } from './ToolCallDisplay';
 import BranchModal from './BranchModal';
@@ -27,6 +28,12 @@ export default function MessageItem({ message, isStreaming, messageIndex = 0, pr
   const config = useConfig();
   const navigate = useNavigate();
   const appPath = useAppPath();
+  const extensionTools = useExtensionTools();
+  const toolRendererMap = useMemo(() => {
+    const map = new Map<string, typeof extensionTools[number]>();
+    extensionTools.forEach((tool) => map.set(tool.name, tool));
+    return map;
+  }, [extensionTools]);
 
   const isUser = message.role === 'user';
   const showToolCalls = config.mcp?.showToolCalls !== false;
@@ -88,9 +95,22 @@ export default function MessageItem({ message, isStreaming, messageIndex = 0, pr
     toolResult: message.toolResults?.find((r) => r.toolCallId === toolCall.id),
   })) || [];
 
+  const renderedToolCalls = toolCallsWithResults
+    .filter(({ toolCall, toolResult }) =>
+      toolCall.serverId === 'native' &&
+      !!toolResult &&
+      !!toolRendererMap.get(toolCall.toolName)?.resultRenderer
+    )
+    .map(({ toolCall, toolResult }) => {
+      const renderer = toolRendererMap.get(toolCall.toolName)!.resultRenderer!;
+      return { toolCall, toolResult: toolResult!, Renderer: renderer };
+    });
+
+  const renderedToolCallIds = new Set(renderedToolCalls.map((entry) => entry.toolCall.id));
+
   // Check if any tool has a UI resource to render
   const uiResources = toolCallsWithResults
-    .filter((tc) => tc.toolResult?.uiResource?.text)
+    .filter((tc) => tc.toolResult?.uiResource?.text && !renderedToolCallIds.has(tc.toolCall.id))
     .map((tc) => tc.toolResult!.uiResource!);
 
   // Debug logging
@@ -188,7 +208,18 @@ export default function MessageItem({ message, isStreaming, messageIndex = 0, pr
         </div>
       )}
 
-      {/* 2. UI Resource Widgets (outside bubble, full width) */}
+      {/* 2. Tool Renderers (native tools) */}
+      {renderedToolCalls.length > 0 && (
+        <div className="space-y-3">
+          {renderedToolCalls.map(({ toolCall, toolResult, Renderer }) => (
+            <div key={toolCall.id} className="rounded-lg border border-border bg-background-secondary/40 p-3">
+              <Renderer toolCall={toolCall} toolResult={toolResult} />
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* 3. UI Resource Widgets (outside bubble, full width) */}
       {uiResources.length > 0 && (
         <div className="space-y-3">
           {uiResources.map((uiResource, index) => (
@@ -197,7 +228,7 @@ export default function MessageItem({ message, isStreaming, messageIndex = 0, pr
         </div>
       )}
 
-      {/* 3. Text Response Bubble (with avatar) */}
+      {/* 4. Text Response Bubble (with avatar) */}
       {(message.content || isStreaming) && (
         <div className="group flex gap-3">
           {/* Avatar */}

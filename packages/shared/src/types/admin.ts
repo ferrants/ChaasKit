@@ -107,3 +107,95 @@ export interface AdminTeamsResponse {
   page: number;
   pageSize: number;
 }
+
+export type WaitlistStatus = 'pending' | 'invited' | 'removed';
+
+export interface AdminWaitlistEntry {
+  id: string;
+  email: string;
+  name?: string | null;
+  status: WaitlistStatus;
+  createdAt: Date;
+  invitedAt?: Date | null;
+  invitedByUserId?: string | null;
+}
+
+export interface AdminWaitlistResponse {
+  entries: AdminWaitlistEntry[];
+  total: number;
+}
+
+export interface AdminWaitlistInviteResponse {
+  inviteToken: string;
+  inviteUrl: string;
+}
+
+export interface AdminPromoCode {
+  id: string;
+  code: string;
+  credits: number;
+  maxUses: number;
+  redeemedCount: number;
+  startsAt?: Date | null;
+  endsAt?: Date | null;
+  creditsExpiresAt?: Date | null;
+  createdAt: Date;
+}
+
+export interface AdminPromoCodesResponse {
+  promoCodes: AdminPromoCode[];
+}
+
+export interface AdminCreatePromoCodeRequest {
+  code: string;
+  credits: number;
+  maxUses: number;
+  startsAt?: string;
+  endsAt?: string;
+  creditsExpiresAt?: string;
+}
+
+export interface AdminCreatePromoCodeResponse {
+  promoCode: AdminPromoCode;
+}
+
+export interface AdminUpdatePromoCodeRequest {
+  credits?: number;
+  maxUses?: number;
+  startsAt?: string | null;
+  endsAt?: string | null;
+  creditsExpiresAt?: string | null;
+}
+
+export interface AdminUpdatePromoCodeResponse {
+  promoCode: AdminPromoCode;
+}
+
+export interface AdminPromoCode {
+  id: string;
+  code: string;
+  credits: number;
+  maxUses: number;
+  redeemedCount: number;
+  startsAt?: Date | null;
+  endsAt?: Date | null;
+  creditsExpiresAt?: Date | null;
+  createdAt: Date;
+}
+
+export interface AdminPromoCodesResponse {
+  promoCodes: AdminPromoCode[];
+}
+
+export interface AdminCreatePromoCodeRequest {
+  code: string;
+  credits: number;
+  maxUses: number;
+  startsAt?: string;
+  endsAt?: string;
+  creditsExpiresAt?: string;
+}
+
+export interface AdminCreatePromoCodeResponse {
+  promoCode: AdminPromoCode;
+}

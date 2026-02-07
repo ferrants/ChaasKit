@@ -20,9 +20,14 @@ interface AuthContextType {
   user: UserSession | null;
   isLoading: boolean;
   login: (email: string, password: string) => Promise<LoginResult>;
-  register: (email: string, password: string, name?: string) => Promise<RegisterResult>;
+  register: (
+    email: string,
+    password: string,
+    name?: string,
+    options?: { inviteToken?: string; referralCode?: string }
+  ) => Promise<RegisterResult>;
   logout: () => Promise<void>;
-  sendMagicLink: (email: string) => Promise<void>;
+  sendMagicLink: (email: string, inviteToken?: string) => Promise<void>;
   verifyEmail: (code: string) => Promise<void>;
   resendVerification: () => Promise<void>;
 }
@@ -59,12 +64,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return { requiresVerification: response.requiresVerification ?? false };
   }
 
-  async function register(email: string, password: string, name?: string): Promise<RegisterResult> {
+  async function register(
+    email: string,
+    password: string,
+    name?: string,
+    options?: { inviteToken?: string; referralCode?: string }
+  ): Promise<RegisterResult> {
     const response = await api.post<{
       user: UserSession;
       token: string;
       requiresVerification?: boolean;
-    }>('/api/auth/register', { email, password, name });
+    }>('/api/auth/register', { email, password, name, ...options });
     setUser(response.user);
     return { requiresVerification: response.requiresVerification ?? false };
   }
@@ -74,8 +84,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
   }
 
-  async function sendMagicLink(email: string) {
-    await api.post('/api/auth/magic-link', { email });
+  async function sendMagicLink(email: string, inviteToken?: string) {
+    await api.post('/api/auth/magic-link', { email, inviteToken });
   }
 
   async function verifyEmail(code: string) {

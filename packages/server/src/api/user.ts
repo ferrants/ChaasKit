@@ -4,6 +4,7 @@ import { HTTP_STATUS, updateUserSettingsSchema } from '@chaaskit/shared';
 import { requireAuth } from '../middleware/auth.js';
 import { getConfig } from '../config/loader.js';
 import { getPlanLimits } from '../services/usage.js';
+import { getCreditsBalance } from '../services/credits.js';
 
 export const userRouter = Router();
 
@@ -64,7 +65,6 @@ userRouter.get('/subscription', requireAuth, async (req, res, next) => {
       where: { id: req.user!.id },
       select: {
         plan: true,
-        credits: true,
         messagesThisMonth: true,
         stripeCustomerId: true,
       },
@@ -81,7 +81,7 @@ userRouter.get('/subscription', requireAuth, async (req, res, next) => {
     res.json({
       plan: user.plan,
       planName: plan?.name || 'Unknown',
-      credits: user.credits,
+      credits: (await getCreditsBalance('user', req.user!.id)).balance,
       messagesThisMonth: user.messagesThisMonth,
       monthlyLimit: planLimits.monthlyMessageLimit,
       hasStripeCustomer: !!user.stripeCustomerId,
@@ -98,7 +98,6 @@ userRouter.get('/usage', requireAuth, async (req, res, next) => {
       where: { id: req.user!.id },
       select: {
         plan: true,
-        credits: true,
         messagesThisMonth: true,
       },
     });
@@ -113,7 +112,7 @@ userRouter.get('/usage', requireAuth, async (req, res, next) => {
     res.json({
       messagesThisMonth: user.messagesThisMonth,
       monthlyLimit: planLimits.monthlyMessageLimit,
-      credits: user.credits,
+      credits: (await getCreditsBalance('user', req.user!.id)).balance,
       plan: user.plan,
     });
   } catch (error) {

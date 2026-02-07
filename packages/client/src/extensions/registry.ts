@@ -1,4 +1,5 @@
 import type { ComponentType } from 'react';
+import type { ToolCall, ToolResult } from '@chaaskit/shared';
 
 /**
  * Page extension configuration
@@ -31,7 +32,7 @@ export interface ToolExtension {
   /** Description of the tool */
   description: string;
   /** Custom renderer for tool results */
-  resultRenderer?: ComponentType<{ result: unknown }>;
+  resultRenderer?: ComponentType<{ toolCall: ToolCall; toolResult: ToolResult }>;
 }
 
 /**

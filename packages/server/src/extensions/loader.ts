@@ -44,6 +44,7 @@ export async function loadExtensions(basePath: string = process.cwd()): Promise<
     'extensions/payment-plans',
     'extensions/auth-providers',
     'extensions/mcp-resources',
+    'extensions/jobs',
   ];
 
   let loadedCount = 0;

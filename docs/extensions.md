@@ -422,7 +422,7 @@ export default function AnalyticsPage() {
 
 ### Custom Tool Renderers
 
-Create custom renderers for specific tool outputs. Tool renderers are registered with the client registry and used when displaying tool results in chat.
+Create custom renderers for specific tool outputs. Tool renderers are registered with the client registry and used when displaying tool results in chat. Renderers receive `toolCall` and `toolResult` props, with `toolResult.structuredContent` available for native tools that emit structured data.
 
 ```tsx
 // extensions/tools/chart-renderer.tsx
@@ -434,7 +434,11 @@ interface ChartResult {
   title?: string;
 }
 
-function ChartRenderer({ result }: { result: ChartResult }) {
+function ChartRenderer({ toolResult }: { toolResult: { structuredContent?: ChartResult } }) {
+  const result = toolResult.structuredContent;
+  if (!result) {
+    return <div className="text-sm text-text-secondary">No chart data.</div>;
+  }
   return (
     <div className="rounded-lg border border-border p-4">
       {result.title && (

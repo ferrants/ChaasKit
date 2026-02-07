@@ -7,6 +7,8 @@ import { AppError } from '../middleware/errorHandler.js';
 import { getConfig } from '../config/loader.js';
 import { createAgentService, type ChatMessage, type AnthropicMessageContent } from '../services/agent.js';
 import { checkUsageLimits, incrementUsage } from '../services/usage.js';
+import { recordUsage } from '../services/metering.js';
+import { getReferralForUser, grantReferralCreditsIfEligible } from '../services/referrals.js';
 import { mcpManager } from '../mcp/client.js';
 import { pendingConfirmations, type ConfirmationScope } from '../services/pendingConfirmation.js';
 import { checkToolConfirmationRequired, createDenialToolResult } from '../services/toolConfirmation.js';
@@ -187,6 +189,15 @@ chatRouter.post('/', optionalAuth, optionalVerifiedEmail, async (req, res, next)
       }
     }
 
+    const isFirstUserMessage = req.user
+      ? (await db.message.count({
+          where: {
+            role: 'user',
+            thread: { userId: req.user.id },
+          },
+        })) === 0
+      : false;
+
     // Create user message
     await db.message.create({
       data: {
@@ -210,6 +221,13 @@ chatRouter.post('/', optionalAuth, optionalVerifiedEmail, async (req, res, next)
     }
 
     console.log(`[Chat] User message saved to thread ${thread.id}`);
+
+    if (req.user && isFirstUserMessage) {
+      const referral = await getReferralForUser(req.user.id);
+      if (referral) {
+        await grantReferralCreditsIfEligible({ referralId: referral.id, event: 'first_message' });
+      }
+    }
 
     // Set up SSE
     res.setHeader('Content-Type', 'text/event-stream');
@@ -593,6 +611,7 @@ chatRouter.post('/', optionalAuth, optionalVerifiedEmail, async (req, res, next)
             input: toolCall.input,
             content: result.content,
             isError: result.isError,
+            structuredContent: result.structuredContent,
             uiResource: uiResource ? {
               uri: resourceUri,
               text: uiResource.text,
@@ -617,6 +636,7 @@ chatRouter.post('/', optionalAuth, optionalVerifiedEmail, async (req, res, next)
             ...toolCall,
             result: result.content,
             isError: result.isError,
+            structuredContent: result.structuredContent,
             uiResource: uiResource ? {
               uri: resourceUri as string,
               text: uiResource.text,
@@ -699,6 +719,7 @@ chatRouter.post('/', optionalAuth, optionalVerifiedEmail, async (req, res, next)
                 content: tc.result,
                 isError: tc.isError,
                 uiResource: tc.uiResource,
+                structuredContent: tc.structuredContent,
               }))))
             : undefined,
         },
@@ -710,9 +731,21 @@ chatRouter.post('/', optionalAuth, optionalVerifiedEmail, async (req, res, next)
         data: { updatedAt: new Date() },
       });
 
-      // Increment usage on the correct entity (user or team)
+      // Record usage + increment usage on the correct entity (user or team)
       if (req.user) {
-        await incrementUsage(req.user.id, thread.teamId || undefined);
+        await recordUsage({
+          provider: isBuiltInAgent(agentDef) ? agentDef.provider : 'external',
+          model: isBuiltInAgent(agentDef) ? agentDef.model : 'external',
+          promptTokens: totalUsage.inputTokens,
+          completionTokens: totalUsage.outputTokens,
+          userId: req.user.id,
+          teamId: thread.teamId || undefined,
+          messageId: assistantMessage.id,
+        });
+        await incrementUsage(req.user.id, thread.teamId || undefined, {
+          inputTokens: totalUsage.inputTokens,
+          outputTokens: totalUsage.outputTokens,
+        });
       }
 
       // Send done event
@@ -831,8 +864,22 @@ chatRouter.post('/regenerate/:messageId', requireAuth, async (req, res, next) =>
         },
       });
 
+      // Record usage + increment usage on the correct entity (user or team)
+      await recordUsage({
+        provider: isBuiltInAgent(agentDef) ? agentDef.provider : 'external',
+        model: isBuiltInAgent(agentDef) ? agentDef.model : 'external',
+        promptTokens: usage.inputTokens,
+        completionTokens: usage.outputTokens,
+        userId: req.user!.id,
+        teamId: message.thread.teamId || undefined,
+        messageId,
+      });
+
       // Increment usage on the correct entity (user or team)
-      await incrementUsage(req.user!.id, message.thread.teamId || undefined);
+      await incrementUsage(req.user!.id, message.thread.teamId || undefined, {
+        inputTokens: usage.inputTokens,
+        outputTokens: usage.outputTokens,
+      });
 
       res.write(
         `data: ${JSON.stringify({

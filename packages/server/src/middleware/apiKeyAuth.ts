@@ -83,7 +83,9 @@ export async function apiKeyAuth(
       return;
     }
 
-    if (!isEndpointAllowed(req.path, allowedEndpoints)) {
+    const fullPath = `${req.baseUrl || ''}${req.path || ''}` || req.path;
+
+    if (!isEndpointAllowed(fullPath, allowedEndpoints)) {
       res.status(HTTP_STATUS.FORBIDDEN).json({
         error: 'API key access is not allowed for this endpoint'
       });

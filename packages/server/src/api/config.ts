@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import type { AppConfig } from '@chaaskit/shared';
+import type { AppConfig, PublicAppConfig } from '@chaaskit/shared';
 import { getConfig } from '../config/loader.js';
 
 export const configRouter = Router();
@@ -14,7 +14,7 @@ export const configRouter = Router();
  * Sections intentionally excluded:
  * - agent: Contains API keys and provider details
  */
-function buildClientConfig(config: AppConfig) {
+function buildClientConfig(config: AppConfig): PublicAppConfig {
   return {
     app: config.app,
     ui: config.ui,
@@ -24,11 +24,11 @@ function buildClientConfig(config: AppConfig) {
       allowUnauthenticated: config.auth.allowUnauthenticated,
       magicLink: config.auth.magicLink,
       emailVerification: config.auth.emailVerification,
+      gating: config.auth.gating,
     },
     payments: {
       enabled: config.payments.enabled,
       provider: config.payments.provider,
-      plans: config.payments.plans,
     },
     legal: config.legal,
     userSettings: config.userSettings,
@@ -47,10 +47,12 @@ function buildClientConfig(config: AppConfig) {
       showToolCalls: config.mcp.showToolCalls,
     } : undefined,
     sharing: config.sharing,
-    promptTemplates: config.promptTemplates,
+    promptTemplates: config.promptTemplates ? {
+      enabled: config.promptTemplates.enabled,
+      allowUserTemplates: config.promptTemplates.allowUserTemplates,
+    } : undefined,
     teams: config.teams,
     projects: config.projects,
-    admin: config.admin,
     documents: config.documents ? {
       enabled: config.documents.enabled,
       maxFileSizeMB: config.documents.maxFileSizeMB,
@@ -60,15 +62,7 @@ function buildClientConfig(config: AppConfig) {
     } : undefined,
     api: config.api ? {
       enabled: config.api.enabled,
-      allowedPlans: config.api.allowedPlans,
       // Exclude: keyPrefix, allowedEndpoints (internal details)
-    } : undefined,
-    slack: config.slack ? {
-      enabled: config.slack.enabled,
-      allowedPlans: config.slack.allowedPlans,
-      aiChat: config.slack.aiChat,
-      notifications: config.slack.notifications,
-      // Exclude: *EnvVar fields (secrets)
     } : undefined,
     email: config.email ? {
       enabled: config.email.enabled,
@@ -80,9 +74,17 @@ function buildClientConfig(config: AppConfig) {
       allowUserPrompts: config.scheduledPrompts.allowUserPrompts,
       allowTeamPrompts: config.scheduledPrompts.allowTeamPrompts,
       defaultTimezone: config.scheduledPrompts.defaultTimezone,
-      planLimits: config.scheduledPrompts.planLimits,
       defaultMaxUserPrompts: config.scheduledPrompts.defaultMaxUserPrompts,
       defaultMaxTeamPrompts: config.scheduledPrompts.defaultMaxTeamPrompts,
+    } : undefined,
+    credits: config.credits ? {
+      enabled: config.credits.enabled,
+      expiryEnabled: config.credits.expiryEnabled,
+      promoEnabled: config.credits.promoEnabled,
+    } : undefined,
+    metering: config.metering ? {
+      enabled: config.metering.enabled,
+      recordPromptCompletion: config.metering.recordPromptCompletion,
     } : undefined,
   };
 }

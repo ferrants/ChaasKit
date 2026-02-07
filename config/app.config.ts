@@ -96,6 +96,11 @@ export const config: AppConfig = {
       enabled: true,
       expiresInMinutes: 15,
     },
+    gating: {
+      mode: 'open',
+      inviteExpiryDays: 7,
+      waitlistEnabled: true,
+    },
   },
 
   // Multi-agent configuration
@@ -379,6 +384,25 @@ export const config: AppConfig = {
       'text/csv',
       'application/json',
     ],
+  },
+
+  credits: {
+    enabled: true,
+    expiryEnabled: true,
+    defaultExpiryDays: 365,
+    tokensPerCredit: 1000,
+    referralRewardCredits: 10,
+    referralTriggers: {
+      signup: true,
+      firstMessage: true,
+      paying: true,
+    },
+    promoEnabled: true,
+  },
+
+  metering: {
+    enabled: true,
+    recordPromptCompletion: true,
   },
 };
 

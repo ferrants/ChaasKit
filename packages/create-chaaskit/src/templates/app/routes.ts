@@ -41,6 +41,8 @@ export default [
     // Admin pages
     route(`${base}/admin`, 'routes/chat.admin._index.tsx'),
     route(`${base}/admin/users`, 'routes/chat.admin.users.tsx'),
+    route(`${base}/admin/waitlist`, 'routes/chat.admin.waitlist.tsx'),
+    route(`${base}/admin/promo-codes`, 'routes/chat.admin.promo-codes.tsx'),
     route(`${base}/admin/teams`, 'routes/chat.admin.teams._index.tsx'),
     route(`${base}/admin/teams/:teamId`, 'routes/chat.admin.teams.$teamId.tsx'),
   ]),

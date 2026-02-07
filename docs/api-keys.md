@@ -30,7 +30,7 @@ api: {
 
 ### Endpoint Patterns
 
-The `allowedEndpoints` array supports pattern matching:
+The `allowedEndpoints` array supports pattern matching (matched against full request path):
 
 | Pattern | Matches | Does NOT Match |
 |---------|---------|----------------|

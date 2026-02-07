@@ -7,6 +7,14 @@ import { requireAuth } from '../middleware/auth.js';
 import { AppError } from '../middleware/errorHandler.js';
 import { getConfig } from '../config/loader.js';
 import { getTeamSubscription, getPlanLimits } from '../services/usage.js';
+import { grantCredits } from '../services/credits.js';
+import { getReferralForUser, grantReferralCreditsIfEligible } from '../services/referrals.js';
+import {
+  isEmailEnabled,
+  sendEmail,
+  generatePaymentFailedEmailHtml,
+  generatePaymentFailedEmailText,
+} from '../services/email/index.js';
 
 export const paymentsRouter = Router();
 
@@ -42,6 +50,84 @@ async function verifyTeamAdmin(userId: string, teamId: string): Promise<void> {
   if (membership.role !== 'owner' && membership.role !== 'admin') {
     throw new AppError(HTTP_STATUS.FORBIDDEN, 'Only team owners and admins can manage billing');
   }
+}
+
+function formatAmount(amount: number | null | undefined, currency: string | null | undefined): string | undefined {
+  if (typeof amount !== 'number' || !currency) return undefined;
+  const value = (amount / 100).toFixed(2);
+  return `${value} ${currency.toUpperCase()}`;
+}
+
+async function notifyPaymentFailed(invoice: Stripe.Invoice): Promise<void> {
+  const config = getConfig();
+  if (!isEmailEnabled()) {
+    console.log('[Payments] Email disabled, skipping payment failed notification');
+    return;
+  }
+
+  const customerId = invoice.customer as string | null;
+  if (!customerId) {
+    return;
+  }
+
+  const amountDue = formatAmount(invoice.amount_due, invoice.currency);
+  const invoiceUrl = invoice.hosted_invoice_url || null;
+
+  const team = await db.team.findFirst({
+    where: { stripeCustomerId: customerId },
+    include: {
+      members: {
+        where: { role: 'owner' },
+        select: {
+          user: { select: { email: true, name: true } },
+        },
+      },
+    },
+  });
+
+  let recipients: string[] = [];
+  let subjectName = 'your account';
+
+  if (team) {
+    subjectName = `team ${team.name}`;
+    recipients = team.members.map((m) => m.user.email);
+
+    if (recipients.length === 0) {
+      const admins = await db.teamMember.findMany({
+        where: { teamId: team.id, role: 'admin' },
+        select: { user: { select: { email: true } } },
+      });
+      recipients = admins.map((m) => m.user.email);
+    }
+  } else {
+    const user = await db.user.findFirst({
+      where: { stripeCustomerId: customerId },
+      select: { email: true },
+    });
+    if (user) {
+      recipients = [user.email];
+    }
+  }
+
+  if (recipients.length === 0) {
+    return;
+  }
+
+  const html = generatePaymentFailedEmailHtml(
+    { subjectName, amountDue, invoiceUrl },
+    config
+  );
+  const text = generatePaymentFailedEmailText(
+    { subjectName, amountDue, invoiceUrl },
+    config
+  );
+
+  await sendEmail({
+    to: recipients,
+    subject: `Payment failed for ${config.app.name}`,
+    html,
+    text,
+  });
 }
 
 // Get all plans (public endpoint for pricing page)
@@ -442,23 +528,34 @@ paymentsRouter.post(
                 },
               });
               console.log(`[Webhook] Updated user ${userId} to plan ${planId}`);
+
+              if (planId !== 'free') {
+                const referral = await getReferralForUser(userId);
+                if (referral) {
+                  await grantReferralCreditsIfEligible({ referralId: referral.id, event: 'paying' });
+                }
+              }
             }
           } else if (session.mode === 'payment' && credits > 0) {
             // Add credits to user or team
             if (teamId) {
-              await db.team.update({
-                where: { id: teamId },
-                data: {
-                  credits: { increment: credits },
-                },
+              await grantCredits({
+                ownerType: 'team',
+                ownerId: teamId,
+                amount: credits,
+                reason: 'purchase',
+                sourceType: 'purchase',
+                metadata: { checkoutSessionId: session.id },
               });
               console.log(`[Webhook] Added ${credits} credits to team ${teamId}`);
             } else if (userId) {
-              await db.user.update({
-                where: { id: userId },
-                data: {
-                  credits: { increment: credits },
-                },
+              await grantCredits({
+                ownerType: 'user',
+                ownerId: userId,
+                amount: credits,
+                reason: 'purchase',
+                sourceType: 'purchase',
+                metadata: { checkoutSessionId: session.id },
               });
               console.log(`[Webhook] Added ${credits} credits to user ${userId}`);
             }
@@ -527,6 +624,13 @@ paymentsRouter.post(
                   data: { plan: planId },
                 });
                 console.log(`[Webhook] User ${user.id} plan updated to ${planId}`);
+
+                if (planId !== 'free') {
+                  const referral = await getReferralForUser(user.id);
+                  if (referral) {
+                    await grantReferralCreditsIfEligible({ referralId: referral.id, event: 'paying' });
+                  }
+                }
               }
             }
           }
@@ -536,7 +640,7 @@ paymentsRouter.post(
         case 'invoice.payment_failed': {
           const invoice = event.data.object as Stripe.Invoice;
           console.error('Payment failed for customer:', invoice.customer);
-          // TODO: Send notification email
+          await notifyPaymentFailed(invoice);
           break;
         }
       }
@@ -548,3 +652,5 @@ paymentsRouter.post(
     }
   }
 );
+
+export { notifyPaymentFailed };

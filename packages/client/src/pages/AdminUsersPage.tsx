@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router';
-import { LayoutDashboard, X, Users, Building2 } from 'lucide-react';
+import { LayoutDashboard, X, Users, Building2, Mail, Tag } from 'lucide-react';
 import { useConfig } from '../contexts/ConfigContext';
 import { useAppPath } from '../hooks/useAppPath';
 import { api } from '../utils/api';
@@ -134,6 +134,20 @@ export default function AdminUsersPage() {
               Teams
             </Link>
           )}
+          <Link
+            to={appPath('/admin/waitlist')}
+            className="flex items-center gap-1.5 rounded-full bg-background-secondary px-4 py-2 text-sm font-medium text-text-secondary hover:bg-background-secondary/80"
+          >
+            <Mail size={16} />
+            Waitlist
+          </Link>
+          <Link
+            to={appPath('/admin/promo-codes')}
+            className="flex items-center gap-1.5 rounded-full bg-background-secondary px-4 py-2 text-sm font-medium text-text-secondary hover:bg-background-secondary/80"
+          >
+            <Tag size={16} />
+            Promo Codes
+          </Link>
         </div>
 
         {error && (

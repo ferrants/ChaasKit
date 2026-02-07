@@ -1,8 +1,9 @@
-import { useRef, useEffect } from 'react';
-import type { Message, MCPContent, UIResource } from '@chaaskit/shared';
+import { useMemo, useRef, useEffect } from 'react';
+import type { Message, MCPContent, UIResource, ToolCall, ToolResult } from '@chaaskit/shared';
 import { Bot } from 'lucide-react';
 import { useTheme } from '../contexts/ThemeContext';
 import { useConfig } from '../contexts/ConfigContext';
+import { useExtensionTools } from '../extensions/useExtensions';
 import MessageItem from './MessageItem';
 import ToolCallDisplay, { UIResourceWidget } from './ToolCallDisplay';
 
@@ -17,6 +18,7 @@ interface CompletedToolCall extends PendingToolCall {
   result: MCPContent[];
   isError?: boolean;
   uiResource?: UIResource;
+  structuredContent?: Record<string, unknown>;
 }
 
 interface MessageListProps {
@@ -35,6 +37,12 @@ export default function MessageList({
   const bottomRef = useRef<HTMLDivElement>(null);
   const { theme } = useTheme();
   const config = useConfig();
+  const extensionTools = useExtensionTools();
+  const toolRendererMap = useMemo(() => {
+    const map = new Map<string, typeof extensionTools[number]>();
+    extensionTools.forEach((tool) => map.set(tool.name, tool));
+    return map;
+  }, [extensionTools]);
   const showToolCalls = config.mcp?.showToolCalls !== false;
 
   useEffect(() => {
@@ -45,8 +53,34 @@ export default function MessageList({
   const isStreaming = Boolean(streamingContent) || hasToolActivity;
 
   // Get UI resources from completed tool calls for separate rendering
+  const renderedToolCalls = completedToolCalls
+    .filter((call) =>
+      call.serverId === 'native' &&
+      !!toolRendererMap.get(call.name)?.resultRenderer
+    )
+    .map((call) => {
+      const renderer = toolRendererMap.get(call.name)!.resultRenderer!;
+      const toolCall: ToolCall = {
+        id: call.id,
+        serverId: call.serverId,
+        toolName: call.name,
+        arguments: call.input,
+        status: call.isError ? 'error' : 'completed',
+      };
+      const toolResult: ToolResult = {
+        toolCallId: call.id,
+        content: call.result,
+        isError: call.isError,
+        uiResource: call.uiResource,
+        structuredContent: call.structuredContent,
+      };
+      return { toolCall, toolResult, Renderer: renderer };
+    });
+
+  const renderedToolCallIds = new Set(renderedToolCalls.map((entry) => entry.toolCall.id));
+
   const uiResources = completedToolCalls
-    .filter((tc) => tc.uiResource?.text)
+    .filter((tc) => tc.uiResource?.text && !renderedToolCallIds.has(tc.id))
     .map((tc) => tc.uiResource!);
 
   // Debug logging
@@ -96,6 +130,7 @@ export default function MessageList({
                       toolCallId: call.id,
                       content: call.result,
                       isError: call.isError,
+                      structuredContent: call.structuredContent,
                     }}
                     hideUiResource
                   />
@@ -118,7 +153,18 @@ export default function MessageList({
               </div>
             )}
 
-            {/* 2. UI Resource Widgets (outside bubble, full width) */}
+            {/* 2. Tool Renderers (native tools) */}
+            {renderedToolCalls.length > 0 && (
+              <div className="space-y-3">
+                {renderedToolCalls.map(({ toolCall, toolResult, Renderer }) => (
+                  <div key={toolCall.id} className="rounded-lg border border-border bg-background-secondary/40 p-3">
+                    <Renderer toolCall={toolCall} toolResult={toolResult} />
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* 3. UI Resource Widgets (outside bubble, full width) */}
             {uiResources.length > 0 && (
               <div className="space-y-3">
                 {uiResources.map((uiResource, index) => (
@@ -127,7 +173,7 @@ export default function MessageList({
               </div>
             )}
 
-            {/* 3. Text Response Bubble (with avatar) */}
+            {/* 4. Text Response Bubble (with avatar) */}
             {streamingContent && (
               <div className="group flex gap-3">
                 {/* Avatar */}

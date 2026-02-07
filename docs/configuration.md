@@ -35,6 +35,12 @@ const config: AppConfig = {
 export default config;
 ```
 
+## Public Config Boundary
+
+The server exposes a client-safe config via `/api/config`. This is an allowlist of safe fields and intentionally excludes secrets, internal flags, plan IDs, and agent prompts.
+
+If you add new config values that must be visible on the client, update the public config mapping in the server.
+
 ## Environment Variables
 
 Required variables in `.env`:
@@ -103,16 +109,16 @@ app: {
   name: 'AI Chat',
   description: 'Your AI assistant',
   url: process.env.APP_URL || 'http://localhost:5173',
-  basePath: '/app',  // Optional: run chat app under a path
+  basePath: '/chat',  // Optional: run chat app under a path (default: /chat)
 }
 ```
 
 ### Base Path (Marketing Site Integration)
 
-The `basePath` option allows you to run the authenticated chat application under a sub-path (e.g., `/chat`), freeing up the root URL for a marketing site or other public pages.
+The `basePath` option allows you to run the authenticated chat application under a sub-path (default: `/chat`), freeing up the root URL for a marketing site or other public pages.
 
-**Default behavior** (no basePath or `basePath: '/'`):
-- Chat app routes: `/`, `/login`, `/thread/:id`, etc.
+**Default behavior** (no basePath configured):
+- Chat app routes: `/chat`, `/chat/thread/:id`, etc.
 
 **With basePath: '/chat'**:
 - Chat app routes: `/chat`, `/chat/thread/:id`, `/chat/documents`, etc.
@@ -356,6 +362,14 @@ auth: {
     enabled: true,
     expiresInMinutes: 15,
   },
+  gating: {
+    mode: 'open',
+    inviteExpiryDays: 7,
+    waitlistEnabled: true,
+    windowStart: '2026-02-01T00:00:00Z',
+    windowEnd: '2026-02-28T23:59:59Z',
+    capacityLimit: 1000,
+  },
   emailVerification: {
     enabled: true,              // Require email verification for new users
     codeLength: 6,              // Length of verification code (default: 6)
@@ -364,6 +378,22 @@ auth: {
   },
 }
 ```
+
+#### Signup Gating
+
+Controls who can register and whether a waitlist is available.
+
+**Modes:**
+- `open`
+- `invite_only`
+- `closed`
+- `timed_window`
+- `capacity_limit`
+
+**Notes:**
+- Invite tokens bypass gating.
+- `timed_window` uses `windowStart` and `windowEnd` (ISO strings).
+- `capacity_limit` uses `capacityLimit` and compares against user count.
 
 #### Email Verification
 
@@ -444,6 +474,34 @@ mcp: {
 ```
 
 See [MCP Integration](./mcp.md) for full documentation.
+
+### Credits and Metering
+
+Credits are used for usage-based access. Token metering records prompt and completion tokens for supported providers.
+
+```typescript
+credits: {
+  enabled: true,
+  promoEnabled: true,
+  expiryEnabled: true,
+  tokensPerCredit: 1000,
+  referralRewardCredits: 10,
+  referralTriggers: {
+    signup: true,
+    firstMessage: true,
+    paying: true,
+  },
+},
+metering: {
+  enabled: true,
+  recordPromptCompletion: true,
+},
+```
+
+Notes:
+- Credits are granted via ledger entries and consumed FIFO by soonest expiry.
+- Team credits are used when a request is in team context; otherwise personal credits are used.
+- Promo codes enforce max uses, one use per user, and optional time windows.
 
 ### Payments
 
@@ -587,7 +645,7 @@ api: {
 }
 ```
 
-**Endpoint Patterns:**
+**Endpoint Patterns (matched against full request path):**
 - `/api/threads` - Exact match only
 - `/api/threads/*` - Single path segment (e.g., `/api/threads/123`)
 - `/api/threads/**` - Any depth (e.g., `/api/threads/123/messages`)

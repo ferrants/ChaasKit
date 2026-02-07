@@ -267,6 +267,7 @@ function getDefaultConfig(): AppConfig {
       name: 'AI Chat',
       description: 'Your AI assistant',
       url: process.env.APP_URL || 'http://localhost:5173',
+      basePath: '/chat',
     },
     ui: {
       welcomeTitle: 'Welcome to AI Chat',
@@ -350,6 +351,11 @@ function getDefaultConfig(): AppConfig {
         enabled: true,
         expiresInMinutes: 15,
       },
+      gating: {
+        mode: 'open',
+        inviteExpiryDays: 7,
+        waitlistEnabled: false,
+      },
     },
     agent: {
       type: 'built-in',
@@ -428,6 +434,23 @@ function getDefaultConfig(): AppConfig {
         enabled: false,
         pollInterval: 60000,
       },
+    },
+    credits: {
+      enabled: false,
+      expiryEnabled: false,
+      defaultExpiryDays: 365,
+      tokensPerCredit: 1000,
+      referralRewardCredits: 10,
+      referralTriggers: {
+        signup: false,
+        firstMessage: false,
+        paying: false,
+      },
+      promoEnabled: false,
+    },
+    metering: {
+      enabled: false,
+      recordPromptCompletion: true,
     },
   };
 }

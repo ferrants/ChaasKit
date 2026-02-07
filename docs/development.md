@@ -83,6 +83,16 @@ pnpm typecheck    # Run TypeScript checks
 pnpm start        # Start production server
 ```
 
+### Testing
+
+```bash
+TEST_DATABASE_URL="postgresql://postgres:postgres@localhost:5433/chat_saas_test?schema=public" pnpm test
+TEST_DATABASE_URL="postgresql://postgres:postgres@localhost:5433/chat_saas_test?schema=public" pnpm test:watch
+./scripts/test.sh
+```
+
+Tests use a Postgres test database. Set `TEST_DATABASE_URL` (preferred) or `DATABASE_URL`.
+
 ### Database
 
 ```bash

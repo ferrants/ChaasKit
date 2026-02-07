@@ -84,6 +84,25 @@ Displays detailed information about a specific team:
   - Role badge (owner, admin, member, viewer)
   - Join date
 
+### Waitlist (`/admin/waitlist`)
+
+Provides a basic waitlist table with invite actions.
+
+Features:
+- **List**: Email, name, status, created date
+- **Invite**: Generates a single-use invite token and optionally emails it
+
+### Promo Codes (`/admin/promo-codes`)
+
+Provides a lightweight promo code manager.
+
+Features:
+- **Create**: Code, credits, max uses, start/end window, credit expiry
+- **Search**: Filter by code
+- **Status filter**: Active, scheduled, expired
+- **Deactivate/Reactivate**: Toggle availability by setting `endsAt`
+- **Copy**: Copy promo code to clipboard
+
 ## API Endpoints
 
 All admin endpoints require authentication and admin access.
@@ -141,6 +160,21 @@ All admin endpoints require authentication and admin access.
 | `pageSize` | number | 20 | Teams per page (max 100) |
 | `search` | string | - | Filter by team name |
 | `includeArchived` | boolean | false | Include archived teams |
+
+### Waitlist
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/api/admin/waitlist` | List waitlist entries |
+| `POST` | `/api/admin/waitlist/:id/invite` | Invite waitlist entry |
+
+### Promo Codes
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/api/admin/promo-codes` | List promo codes |
+| `POST` | `/api/admin/promo-codes` | Create promo code |
+| `PATCH` | `/api/admin/promo-codes/:id` | Update promo code |
 
 ## Response Types
 
