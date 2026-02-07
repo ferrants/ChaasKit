@@ -1,6 +1,6 @@
 {
   "name": "create-chaaskit",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "CLI to create and manage ChaasKit AI chat SaaS applications",
   "license": "MIT",
   "author": "Matt Ferrante <@ferrants>",
