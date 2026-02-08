@@ -1,6 +1,6 @@
 {
   "name": "chaaskit-monorepo",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "private": true,
   "description": "A configurable, production-ready AI Chat SaaS template",
   "license": "MIT",
@@ -31,6 +31,7 @@
     "queue-worker": "tsx packages/server/src/queue/cli.ts",
     "changeset": "changeset",
     "changeset:version": "changeset version",
+    "changeset:version:ci": "changeset version && pnpm install --no-frozen-lockfile",
     "changeset:publish": "pnpm build && changeset publish"
   },
   "devDependencies": {

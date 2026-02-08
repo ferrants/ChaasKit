@@ -38,28 +38,10 @@ jobs:
       - name: Remove any existing npm user config
         run: rm -f ~/.npmrc
 
-      - name: Debug OIDC and npm config
-        run: |
-          echo "=== .npmrc ==="
-          cat .npmrc || echo "No .npmrc found"
-          echo ""
-          echo "=== npm config list ==="
-          npm config list
-          echo ""
-          echo "=== OIDC endpoint available? ==="
-          if [ -n "$ACTIONS_ID_TOKEN_REQUEST_URL" ]; then
-            echo "Yes - OIDC endpoint is available"
-          else
-            echo "No - ACTIONS_ID_TOKEN_REQUEST_URL is not set"
-          fi
-          echo ""
-          echo "=== npm version ==="
-          npm --version
-
       - name: Create Release PR or Publish
         uses: changesets/action@v1
         with:
-          version: pnpm changeset:version && pnpm install --no-frozen-lockfile
+          version: pnpm changeset:version:ci
           publish: pnpm changeset:publish
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
