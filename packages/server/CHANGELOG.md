@@ -1,5 +1,14 @@
 # @chaaskit/server
 
+## 0.1.2
+
+### Patch Changes
+
+- ec1252c: Release credits, invites, admin UI, tool renderers, and OIDC publish workflow
+- Updated dependencies [ec1252c]
+  - @chaaskit/db@0.1.2
+  - @chaaskit/shared@0.1.2
+
 ## 0.1.1
 
 ### Patch Changes
@@ -8,4 +17,3 @@
 - Updated dependencies
   - @chaaskit/db@0.1.1
   - @chaaskit/shared@0.1.1
-
