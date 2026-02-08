@@ -38,6 +38,9 @@ jobs:
       - name: Remove any existing npm user config
         run: rm -f ~/.npmrc
 
+      - name: Configure .npmrc for OIDC trusted publishers
+        run: echo "registry=https://registry.npmjs.org/" > .npmrc
+
       - name: Create Release PR or Publish
         uses: changesets/action@v1
         with:
