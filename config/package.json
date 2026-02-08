@@ -1,6 +1,6 @@
 {
   "name": "@chaaskit/config",
-  "version": "0.1.3",
+  "version": "0.1.1",
   "private": true,
   "type": "module",
   "main": "./app.config.ts",
