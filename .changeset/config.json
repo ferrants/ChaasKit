@@ -4,6 +4,7 @@
   "commit": false,
   "fixed": [
     [
+      "chaaskit-monorepo",
       "@chaaskit/shared",
       "@chaaskit/db",
       "@chaaskit/server",
