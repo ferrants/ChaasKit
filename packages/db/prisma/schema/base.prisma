@@ -592,3 +592,163 @@ model EmailVerification {
 
   @@index([userId])
 }
+
+// Waitlist & Invites
+model WaitlistEntry {
+  id              String   @id @default(cuid())
+  email           String   @unique
+  name            String?
+  status          String   @default("pending")
+  invitedAt       DateTime?
+  invitedByUserId String?
+  invitedByUser   User?    @relation(fields: [invitedByUserId], references: [id], onDelete: SetNull)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([status])
+}
+
+model InviteToken {
+  id             String   @id @default(cuid())
+  token          String   @unique
+  email          String
+  createdAt      DateTime @default(now())
+  expiresAt      DateTime
+  usedAt         DateTime?
+  usedByUserId   String?
+  usedByUser     User?    @relation("InviteTokenUsedBy", fields: [usedByUserId], references: [id], onDelete: SetNull)
+  createdByUserId String?
+  createdByUser  User?    @relation("InviteTokenCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
+
+  @@index([email])
+  @@index([expiresAt])
+}
+
+// Credits System
+model CreditsLedger {
+  id        String   @id @default(cuid())
+  ownerType String
+  ownerId   String
+  delta     Int
+  reason    String?
+  sourceType String
+  expiresAt DateTime?
+  metadata  Json?
+  createdAt DateTime @default(now())
+
+  grants    CreditsGrant[]
+
+  @@index([ownerType, ownerId])
+  @@index([expiresAt])
+}
+
+model CreditsGrant {
+  id        String   @id @default(cuid())
+  ownerType String
+  ownerId   String
+  total     Int
+  remaining Int
+  expiresAt DateTime?
+  ledgerId  String
+  ledger    CreditsLedger @relation(fields: [ledgerId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@index([ownerType, ownerId])
+  @@index([expiresAt])
+}
+
+model CreditsBalance {
+  id        String   @id @default(cuid())
+  ownerType String
+  ownerId   String
+  balance   Int
+  updatedAt DateTime @updatedAt
+
+  @@unique([ownerType, ownerId])
+}
+
+// Promo Codes
+model PromoCode {
+  id               String   @id @default(cuid())
+  code             String   @unique
+  credits          Int
+  maxUses          Int
+  startsAt         DateTime?
+  endsAt           DateTime?
+  creditsExpiresAt DateTime?
+  createdAt        DateTime @default(now())
+
+  redemptions      PromoCodeRedemption[]
+}
+
+model PromoCodeRedemption {
+  id          String   @id @default(cuid())
+  promoCodeId String
+  promoCode   PromoCode @relation(fields: [promoCodeId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  redeemedAt  DateTime @default(now())
+
+  @@unique([promoCodeId, userId])
+  @@index([userId])
+}
+
+// Referral System
+model ReferralCode {
+  id        String   @id @default(cuid())
+  code      String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+model Referral {
+  id              String   @id @default(cuid())
+  referrerUserId  String
+  referredUserId  String
+  status          String   @default("pending")
+  createdAt       DateTime @default(now())
+
+  referrer        User     @relation("Referrer", fields: [referrerUserId], references: [id], onDelete: Cascade)
+  referred        User     @relation("Referred", fields: [referredUserId], references: [id], onDelete: Cascade)
+  grants          ReferralGrant[]
+
+  @@unique([referrerUserId, referredUserId])
+  @@index([referrerUserId])
+  @@index([referredUserId])
+}
+
+model ReferralGrant {
+  id         String   @id @default(cuid())
+  referralId String
+  referral   Referral @relation(fields: [referralId], references: [id], onDelete: Cascade)
+  event      String
+  grantedAt  DateTime @default(now())
+
+  @@unique([referralId, event])
+}
+
+// Usage Metering
+model UsageMeter {
+  id               String   @id @default(cuid())
+  provider         String
+  model            String
+  promptTokens     Int
+  completionTokens Int
+  totalTokens      Int
+  userId           String
+  teamId           String?
+  messageId        String?
+  message          Message? @relation(fields: [messageId], references: [id], onDelete: SetNull)
+  createdAt        DateTime @default(now())
+
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  team             Team?    @relation(fields: [teamId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([teamId])
+  @@index([messageId])
+  @@index([createdAt])
+}

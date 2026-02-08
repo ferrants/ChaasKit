@@ -139,7 +139,8 @@ When customizing the application, these are the primary files to edit:
 | `config/app.config.ts` | Main configuration (UI, auth, AI agent, payments) |
 | `tailwind.config.ts` | Theme colors, fonts, and styling configuration |
 | `.env` | Environment variables and secrets |
-| `packages/db/prisma/schema.prisma` | Database schema |
+| `packages/db/prisma/schema/base.prisma` | Core database schema (all platform models) |
+| `packages/db/prisma/schema/custom.prisma` | Consumer's custom models (empty by default) |
 | `packages/client/vite.config.ts` | Frontend dev server config (allowed hosts, proxy) |
 | `public/logo.svg` | Application logo |
 | `extensions/` | Custom agents, payment plans, components |
@@ -226,13 +227,19 @@ To access the dev server from other machines:
 2. Add hostnames to `allowedHosts` in `packages/client/vite.config.ts`
 
 ### Database Changes
-1. Modify `packages/db/prisma/schema.prisma`
+1. Modify `packages/db/prisma/schema/base.prisma`
 2. Run `pnpm db:push` to apply changes
 3. Run `pnpm db:generate` if you added new models
 
-Demo schema sync:
-- The demo app has its own Prisma schema in `examples/demo/prisma/schema/`.
-- When adding/changing models in `packages/db/prisma/schema/`, copy the updated `base.prisma` and `custom.prisma` into `examples/demo/prisma/schema/` and run `pnpm --filter chaaskit-demo db:push`.
+**IMPORTANT: `base.prisma` vs `custom.prisma`**
+- **`base.prisma`**: All core platform models go here. This is what ships with `@chaaskit/db` and gets overwritten by `db:sync`. Any model that the platform depends on (or that `base.prisma` has relations to) MUST be in `base.prisma`.
+- **`custom.prisma`**: Reserved for consumer's own application-specific models. Should be empty in the package source — consumers add their own models here.
+- **Never put core models in `custom.prisma`** — they won't ship with the package and will break relation references in `base.prisma`.
+
+Schema sync (3 locations must stay in sync):
+- `packages/db/prisma/schema/` (source of truth)
+- `examples/demo/prisma/schema/` (copy both files here)
+- `packages/create-chaaskit/src/templates/prisma/schema/` (copy `base.prisma` here)
 
 ### Switching AI Providers
 1. Edit `config/app.config.ts`:
@@ -286,9 +293,10 @@ Optional:
 3. Add types to `packages/shared/src/types/api.ts`
 
 ### Add a new database model
-1. Add model to `packages/db/prisma/schema.prisma`
+1. Add model to `packages/db/prisma/schema/base.prisma` (core platform models) or `custom.prisma` (consumer-only models)
 2. Run `pnpm db:push && pnpm db:generate`
 3. Import from `@chaaskit/db` in server code
+4. Sync schema to `examples/demo/prisma/schema/` and `packages/create-chaaskit/src/templates/prisma/schema/`
 
 ### Add a new frontend page
 1. Create component in `packages/client/src/pages/`
