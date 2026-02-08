@@ -1,6 +1,6 @@
 {
   "name": "@chaaskit/db",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Prisma database layer for ChaasKit applications",
   "license": "MIT",
   "author": "Matt Ferrante <@ferrants>",
