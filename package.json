@@ -31,7 +31,7 @@
     "queue-worker": "tsx packages/server/src/queue/cli.ts",
     "changeset": "changeset",
     "changeset:version": "changeset version",
-    "changeset:version:ci": "changeset version && pnpm install --no-frozen-lockfile",
+    "changeset:version:ci": "changeset version && node -e \"const v=require('./packages/shared/package.json').version;const p='./package.json';const r=require(p);r.version=v;require('fs').writeFileSync(p,JSON.stringify(r,null,2)+'\\n')\" && pnpm install --no-frozen-lockfile",
     "changeset:publish": "pnpm build && changeset publish"
   },
   "devDependencies": {
