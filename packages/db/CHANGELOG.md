@@ -1,5 +1,11 @@
 # @chaaskit/db
 
+## 0.1.3
+
+### Patch Changes
+
+- a508480: Fixed base database models
+
 ## 0.1.2
 
 ### Patch Changes

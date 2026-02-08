@@ -1,5 +1,14 @@
 # @chaaskit/server
 
+## 0.1.3
+
+### Patch Changes
+
+- a508480: Fixed base database models
+- Updated dependencies [a508480]
+  - @chaaskit/db@0.1.3
+  - @chaaskit/shared@0.1.3
+
 ## 0.1.2
 
 ### Patch Changes
