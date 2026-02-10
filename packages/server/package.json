@@ -1,6 +1,6 @@
 {
   "name": "@chaaskit/server",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "Express.js backend server for ChaasKit AI chat applications",
   "license": "MIT",
   "author": "Matt Ferrante <@ferrants>",
@@ -52,8 +52,8 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.71.0",
-    "@chaaskit/db": "^0.1.4",
-    "@chaaskit/shared": "^0.1.4",
+    "@chaaskit/db": "^0.1.5",
+    "@chaaskit/shared": "^0.1.5",
     "@modelcontextprotocol/sdk": "^1.0.0",
     "bcryptjs": "^2.4.3",
     "cookie-parser": "^1.4.6",

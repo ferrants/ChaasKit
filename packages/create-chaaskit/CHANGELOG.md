@@ -1,5 +1,11 @@
 # create-chaaskit
 
+## 0.1.5
+
+### Patch Changes
+
+- 622614a: Updated creation to keep routes list for syncing
+
 ## 0.1.4
 
 ### Patch Changes
