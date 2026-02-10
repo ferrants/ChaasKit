@@ -35,16 +35,20 @@ echo ""
 echo "Updating package.json with local package paths..."
 cd "$PROJECT_NAME"
 
+# Read version from shared package (all packages use the same version)
+VERSION=$(node -p "require('$MONOREPO_DIR/packages/shared/package.json').version")
+echo "Using package version: $VERSION"
+
 # Use jq to patch the dependencies to use local tgz files
-jq --arg dir "$MONOREPO_DIR" '
-  .dependencies["@chaaskit/server"] = "file:\($dir)/dist/chaaskit-server-0.1.0.tgz" |
-  .dependencies["@chaaskit/client"] = "file:\($dir)/dist/chaaskit-client-0.1.0.tgz" |
-  .dependencies["@chaaskit/db"] = "file:\($dir)/dist/chaaskit-db-0.1.0.tgz" |
-  .dependencies["@chaaskit/shared"] = "file:\($dir)/dist/chaaskit-shared-0.1.0.tgz" |
-  .pnpm.overrides["@chaaskit/server"] = "file:\($dir)/dist/chaaskit-server-0.1.0.tgz" |
-  .pnpm.overrides["@chaaskit/client"] = "file:\($dir)/dist/chaaskit-client-0.1.0.tgz" |
-  .pnpm.overrides["@chaaskit/db"] = "file:\($dir)/dist/chaaskit-db-0.1.0.tgz" |
-  .pnpm.overrides["@chaaskit/shared"] = "file:\($dir)/dist/chaaskit-shared-0.1.0.tgz"
+jq --arg dir "$MONOREPO_DIR" --arg ver "$VERSION" '
+  .dependencies["@chaaskit/server"] = "file:\($dir)/dist/chaaskit-server-\($ver).tgz" |
+  .dependencies["@chaaskit/client"] = "file:\($dir)/dist/chaaskit-client-\($ver).tgz" |
+  .dependencies["@chaaskit/db"] = "file:\($dir)/dist/chaaskit-db-\($ver).tgz" |
+  .dependencies["@chaaskit/shared"] = "file:\($dir)/dist/chaaskit-shared-\($ver).tgz" |
+  .pnpm.overrides["@chaaskit/server"] = "file:\($dir)/dist/chaaskit-server-\($ver).tgz" |
+  .pnpm.overrides["@chaaskit/client"] = "file:\($dir)/dist/chaaskit-client-\($ver).tgz" |
+  .pnpm.overrides["@chaaskit/db"] = "file:\($dir)/dist/chaaskit-db-\($ver).tgz" |
+  .pnpm.overrides["@chaaskit/shared"] = "file:\($dir)/dist/chaaskit-shared-\($ver).tgz"
 ' package.json > package.json.tmp && mv package.json.tmp package.json
 
 # Convert project name to database name (replace dashes with underscores, lowercase)

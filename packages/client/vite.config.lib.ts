@@ -23,6 +23,7 @@ export default defineConfig({
         ssr: path.resolve(__dirname, 'src/ssr.ts'),
         'ssr-utils': path.resolve(__dirname, 'src/ssr-utils.tsx'),
         routes: path.resolve(__dirname, 'src/routes/index.ts'),
+        'route-registry': path.resolve(__dirname, 'src/route-registry.ts'),
         // Individual route modules for lazy loading
         'routes/ChatRoute': path.resolve(__dirname, 'src/routes/ChatRoute.tsx'),
         'routes/ApiKeysRoute': path.resolve(__dirname, 'src/routes/ApiKeysRoute.tsx'),

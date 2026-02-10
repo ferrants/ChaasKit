@@ -5,6 +5,8 @@ import chalk from 'chalk';
 import ora from 'ora';
 import prompts from 'prompts';
 import { spawn } from 'child_process';
+import { managedRoutes } from '../lib/managed-routes.js';
+import { generateWrapper } from '../lib/wrapper-gen.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -138,8 +140,8 @@ async function copyTemplateFiles(templatesPath: string, targetPath: string, proj
   await fs.ensureDir(path.join(targetPath, 'public'));
 
   // Copy template files
-  // Note: Client wrapper components (*Client.tsx) and documentation files are now
-  // provided by @chaaskit/client package - routes import directly from there.
+  // Note: Thin wrapper routes are generated from the route registry (single source of truth).
+  // Only user-owned templates (login, register, etc.) are copied from the templates directory.
   const templates: Array<{ src: string; dest: string; transform?: (content: string) => string }> = [
     // React Router app files
     { src: 'app/routes.ts', dest: 'app/routes.ts' },
@@ -150,32 +152,15 @@ async function copyTemplateFiles(templatesPath: string, targetPath: string, proj
     { src: 'app/styles/app.css', dest: 'app/styles/app.css' },
     // ClientOnly re-export for convenience
     { src: 'app/components/ClientOnly.tsx', dest: 'app/components/ClientOnly.tsx' },
-    // Public routes (no basePath prefix)
+    // User-owned route templates (full custom pages, NOT thin wrappers)
     { src: 'app/routes/_index.tsx', dest: 'app/routes/_index.tsx' },
     { src: 'app/routes/login.tsx', dest: 'app/routes/login.tsx' },
     { src: 'app/routes/register.tsx', dest: 'app/routes/register.tsx' },
     { src: 'app/routes/shared.$shareId.tsx', dest: 'app/routes/shared.$shareId.tsx' },
     { src: 'app/routes/terms.tsx', dest: 'app/routes/terms.tsx' },
     { src: 'app/routes/privacy.tsx', dest: 'app/routes/privacy.tsx' },
-    { src: 'app/routes/verify-email.tsx', dest: 'app/routes/verify-email.tsx' },
-    { src: 'app/routes/invite.$token.tsx', dest: 'app/routes/invite.$token.tsx' },
-    { src: 'app/routes/pricing.tsx', dest: 'app/routes/pricing.tsx' },
-    { src: 'app/routes/oauth.consent.tsx', dest: 'app/routes/oauth.consent.tsx' },
-    // Authenticated routes (under basePath, e.g., /chat/*)
-    // Layout route that handles authentication for all chat.* routes
+    // Layout route (user-owned, handles auth guard)
     { src: 'app/routes/chat.tsx', dest: 'app/routes/chat.tsx' },
-    { src: 'app/routes/chat._index.tsx', dest: 'app/routes/chat._index.tsx' },
-    { src: 'app/routes/chat.thread.$threadId.tsx', dest: 'app/routes/chat.thread.$threadId.tsx' },
-    { src: 'app/routes/chat.api-keys.tsx', dest: 'app/routes/chat.api-keys.tsx' },
-    { src: 'app/routes/chat.documents.tsx', dest: 'app/routes/chat.documents.tsx' },
-    { src: 'app/routes/chat.automations.tsx', dest: 'app/routes/chat.automations.tsx' },
-    { src: 'app/routes/chat.team.$teamId.settings.tsx', dest: 'app/routes/chat.team.$teamId.settings.tsx' },
-    { src: 'app/routes/chat.admin._index.tsx', dest: 'app/routes/chat.admin._index.tsx' },
-    { src: 'app/routes/chat.admin.users.tsx', dest: 'app/routes/chat.admin.users.tsx' },
-    { src: 'app/routes/chat.admin.waitlist.tsx', dest: 'app/routes/chat.admin.waitlist.tsx' },
-    { src: 'app/routes/chat.admin.promo-codes.tsx', dest: 'app/routes/chat.admin.promo-codes.tsx' },
-    { src: 'app/routes/chat.admin.teams._index.tsx', dest: 'app/routes/chat.admin.teams._index.tsx' },
-    { src: 'app/routes/chat.admin.teams.$teamId.tsx', dest: 'app/routes/chat.admin.teams.$teamId.tsx' },
     // Config
     { src: 'config/app.config.ts', dest: 'config/app.config.ts' },
     { src: 'react-router.config.ts', dest: 'react-router.config.ts' },
@@ -225,6 +210,13 @@ async function copyTemplateFiles(templatesPath: string, targetPath: string, proj
         await fs.outputFile(destPath, '');
       }
     }
+  }
+
+  // Generate thin wrapper route files from the route registry (single source of truth)
+  for (const route of managedRoutes) {
+    const destPath = path.join(targetPath, 'app', route.file);
+    const content = generateWrapper(route);
+    await fs.outputFile(destPath, content);
   }
 }
 

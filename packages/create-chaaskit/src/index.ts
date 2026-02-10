@@ -4,6 +4,7 @@ import { init } from './commands/init.js';
 import { dev } from './commands/dev.js';
 import { build } from './commands/build.js';
 import { dbSync } from './commands/db-sync.js';
+import { sync } from './commands/sync.js';
 import { addInfra } from './commands/add-infra.js';
 
 const program = new Command();
@@ -50,6 +51,16 @@ program
   .option('-f, --force', 'Force update of modified core models')
   .action(async (options) => {
     await dbSync(options);
+  });
+
+// Sync routes and framework files
+program
+  .command('sync')
+  .description('Sync routes and framework files from @chaaskit/client')
+  .option('--dry-run', 'Show changes without writing files')
+  .option('-y, --yes', 'Non-interactive mode (accept all changes)')
+  .action(async (options) => {
+    await sync(options);
   });
 
 // Add infrastructure-as-code

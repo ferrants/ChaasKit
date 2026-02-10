@@ -48,6 +48,10 @@
       "types": "./src/routes/*.tsx",
       "import": "./dist/lib/routes/*.js"
     },
+    "./route-registry": {
+      "types": "./src/route-registry.ts",
+      "import": "./dist/lib/route-registry.js"
+    },
     "./styles": "./dist/lib/styles.css",
     "./tailwind-preset": {
       "types": "./src/tailwind-preset.js",
