@@ -1,5 +1,14 @@
 # @chaaskit/server
 
+## 0.1.5
+
+### Patch Changes
+
+- 622614a: Updated creation to keep routes list for syncing
+- Updated dependencies [622614a]
+  - @chaaskit/db@0.1.5
+  - @chaaskit/shared@0.1.5
+
 ## 0.1.4
 
 ### Patch Changes
