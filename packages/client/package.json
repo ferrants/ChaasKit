@@ -50,7 +50,8 @@
     },
     "./route-registry": {
       "types": "./src/route-registry.ts",
-      "import": "./dist/lib/route-registry.js"
+      "import": "./dist/lib/route-registry.js",
+      "default": "./dist/lib/route-registry.js"
     },
     "./styles": "./dist/lib/styles.css",
     "./tailwind-preset": {

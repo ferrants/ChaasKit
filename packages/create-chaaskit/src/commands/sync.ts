@@ -1,9 +1,8 @@
 import path from 'path';
 import fs from 'fs-extra';
-import { fileURLToPath } from 'url';
+import { fileURLToPath, pathToFileURL } from 'url';
 import chalk from 'chalk';
 import prompts from 'prompts';
-import { createRequire } from 'module';
 import type { ManagedRoute } from '../lib/types.js';
 import { generateWrapper, isThinWrapper } from '../lib/wrapper-gen.js';
 import { insertRoutes, routeExistsInConfig } from '../lib/routes-updater.js';
@@ -326,19 +325,57 @@ export async function sync(options: SyncOptions = {}): Promise<void> {
 
 /**
  * Load the managedRoutes array from the installed @chaaskit/client package.
+ *
+ * Uses direct file path (like db-sync) rather than createRequire, because
+ * require.resolve() uses CJS resolution which can't resolve ESM-only exports.
  */
 async function loadRouteRegistry(cwd: string): Promise<ManagedRoute[] | null> {
+  // Direct path to the built route-registry module
+  const registryPath = path.join(
+    cwd,
+    'node_modules',
+    '@chaaskit',
+    'client',
+    'dist',
+    'lib',
+    'route-registry.js'
+  );
+
+  // Check if the file exists first for a better error message
+  if (!(await fs.pathExists(registryPath))) {
+    // Check if @chaaskit/client is installed at all
+    const clientPkgPath = path.join(cwd, 'node_modules', '@chaaskit', 'client', 'package.json');
+    if (!(await fs.pathExists(clientPkgPath))) {
+      console.error(
+        chalk.red(
+          '@chaaskit/client is not installed.\n' +
+            'Make sure it is listed in your dependencies and run:\n' +
+            '  pnpm install'
+        )
+      );
+    } else {
+      const pkg = JSON.parse(await fs.readFile(clientPkgPath, 'utf-8'));
+      console.error(
+        chalk.red(
+          `@chaaskit/client@${pkg.version} does not include the route registry.\n` +
+            'Update to the latest version:\n' +
+            '  pnpm install @chaaskit/client@latest'
+        )
+      );
+    }
+    return null;
+  }
+
   try {
-    // Use createRequire to resolve from the project's node_modules
-    const require = createRequire(path.join(cwd, 'package.json'));
-    const registryPath = require.resolve('@chaaskit/client/route-registry');
-    const registry = await import(registryPath);
+    const fileUrl = pathToFileURL(registryPath).href;
+    const registry = await import(fileUrl);
     return registry.managedRoutes as ManagedRoute[];
   } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
     console.error(
       chalk.red(
-        'Could not load route registry from @chaaskit/client.\n' +
-          'Make sure @chaaskit/client is installed and up to date:\n' +
+        `Failed to load route registry from @chaaskit/client:\n  ${message}\n` +
+          'Try updating to the latest version:\n' +
           '  pnpm install @chaaskit/client@latest'
       )
     );
