@@ -57,7 +57,7 @@ config/app.config.ts
         ↓                            │
 @chaaskit/client ──────────────┘
 
-chaaskit (CLI scaffolding tool)
+create-chaaskit (CLI scaffolding tool)
 ```
 
 ### Packages
@@ -89,10 +89,10 @@ chaaskit (CLI scaffolding tool)
 - **Stores** (`src/stores/`): chatStore (Zustand) for chat state and SSE streaming
 - **Extensions** (`src/extensions/`): Client-side extension registry for custom pages/tools
 
-**`packages/create-chaaskit`** - CLI scaffolding tool (package name: `chaaskit`)
-- `chaaskit create <project-name>` - Scaffold a new project
-- `chaaskit dev` - Start dev servers
-- `chaaskit build` - Production build
+**`packages/create-chaaskit`** - CLI scaffolding tool (package name: `create-chaaskit`)
+- `create-chaaskit create <project-name>` - Scaffold a new project
+- `create-chaaskit dev` - Start dev servers
+- `create-chaaskit build` - Production build
 
 **`config/`** - Central configuration
 - `app.config.ts`: All app settings (UI, auth methods, AI agent, payments, MCP, etc.)
@@ -122,7 +122,7 @@ cd ../create-chaaskit && pnpm link --global
 
 In your consumer project:
 ```bash
-pnpm link --global @chaaskit/server @chaaskit/client @chaaskit/db @chaaskit/shared chaaskit
+pnpm link --global @chaaskit/server @chaaskit/client @chaaskit/db @chaaskit/shared create-chaaskit
 ```
 
 After making changes to the monorepo, rebuild to update linked packages:

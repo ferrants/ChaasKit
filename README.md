@@ -73,7 +73,7 @@ Release flow:
 
 ```bash
 # Create a new ChaasKit project
-npx chaaskit create my-app
+npx create-chaaskit create my-app
 cd my-app
 ```
 
@@ -127,7 +127,7 @@ This starts the React Router v7 dev server with HMR at `http://localhost:5173`, 
 
 ## Project Structure
 
-When you run `npx chaaskit create`, you get a React Router v7 framework mode application:
+When you run `npx create-chaaskit create`, you get a React Router v7 framework mode application:
 
 ```
 my-app/

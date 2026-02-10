@@ -12,7 +12,7 @@ ChaasKit uses React Router v7 framework mode to provide a full-stack application
 
 ```bash
 # Create a new ChaasKit project
-npx chaaskit create my-app
+npx create-chaaskit create my-app
 
 # Navigate to your project
 cd my-app
@@ -20,7 +20,7 @@ cd my-app
 
 Or with options:
 ```bash
-npx chaaskit create my-app --skip-install --use-npm
+npx create-chaaskit create my-app --skip-install --use-npm
 ```
 
 ## Configure Environment

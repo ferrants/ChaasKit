@@ -172,6 +172,8 @@ async function copyTemplateFiles(templatesPath: string, targetPath: string, proj
     { src: 'app/routes/chat.team.$teamId.settings.tsx', dest: 'app/routes/chat.team.$teamId.settings.tsx' },
     { src: 'app/routes/chat.admin._index.tsx', dest: 'app/routes/chat.admin._index.tsx' },
     { src: 'app/routes/chat.admin.users.tsx', dest: 'app/routes/chat.admin.users.tsx' },
+    { src: 'app/routes/chat.admin.waitlist.tsx', dest: 'app/routes/chat.admin.waitlist.tsx' },
+    { src: 'app/routes/chat.admin.promo-codes.tsx', dest: 'app/routes/chat.admin.promo-codes.tsx' },
     { src: 'app/routes/chat.admin.teams._index.tsx', dest: 'app/routes/chat.admin.teams._index.tsx' },
     { src: 'app/routes/chat.admin.teams.$teamId.tsx', dest: 'app/routes/chat.admin.teams.$teamId.tsx' },
     // Config

@@ -51,7 +51,7 @@ The AWS deployment creates:
 From your ChaasKit project directory:
 
 ```bash
-npx chaaskit add-infra aws
+npx create-chaaskit add-infra aws
 ```
 
 This creates a `cdk/` directory with all infrastructure code.

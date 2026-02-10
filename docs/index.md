@@ -6,7 +6,7 @@ Welcome to ChaasKit - a full-stack AI chat application framework built with Reac
 
 ```bash
 # Create a new project
-npx chaaskit create my-app
+npx create-chaaskit create my-app
 cd my-app
 
 # Configure environment
@@ -35,10 +35,10 @@ ChaasKit provides a set of npm packages that work together:
        ↓
 @chaaskit/client      # React components and pages
 
-chaaskit              # CLI scaffolding tool
+create-chaaskit       # CLI scaffolding tool
 ```
 
-When you run `npx chaaskit create`, you get a **React Router v7 framework mode** application that:
+When you run `npx create-chaaskit create`, you get a **React Router v7 framework mode** application that:
 
 - Uses server-side rendering for public pages (login, register, shared threads)
 - Provides a rich client-side chat experience with real-time streaming
