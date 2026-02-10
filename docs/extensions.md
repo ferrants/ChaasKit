@@ -424,6 +424,8 @@ export default function AnalyticsPage() {
 
 Create custom renderers for specific tool outputs. Tool renderers are registered with the client registry and used when displaying tool results in chat. Renderers receive `toolCall` and `toolResult` props, with `toolResult.structuredContent` available for native tools that emit structured data.
 
+Native tools that return `structuredContent` can be paired with a custom renderer for rich in-chat display. See [Native Tools > Custom Tool Renderers](./native-tools.md#custom-tool-renderers) for a complete walkthrough of creating a tool + renderer pair.
+
 ```tsx
 // extensions/tools/chart-renderer.tsx
 import { clientRegistry } from '@chaaskit/client/extensions';

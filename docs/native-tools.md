@@ -12,10 +12,14 @@ Unlike MCP tools (which connect to external servers), native tools:
 
 ## Available Native Tools
 
-| Tool | Description | Widget |
-|------|-------------|--------|
-| `web-scrape` | Fetches a URL and returns the content as plain text. Supports HTML, JSON, and plain text responses. | No |
-| `get-plan-usage` | Returns the current user's plan information and usage statistics. | Yes |
+| Tool | Description | Widget | Custom Renderer |
+|------|-------------|--------|-----------------|
+| `web-scrape` | Fetches a URL and returns the content as plain text. Supports HTML, JSON, and plain text responses. | No | No |
+| `get-plan-usage` | Returns the current user's plan information and usage statistics. | Yes | No |
+| `list_documents` | Lists documents accessible to the current user (personal, team, project). | No | Yes |
+| `read_document` | Reads document content with pagination support. | No | Yes |
+| `search_in_document` | Searches text within a document, returning matching lines with context. | No | Yes |
+| `save_document` | Saves content as a new document for the current user. | No | Yes |
 
 ## Configuration
 
@@ -61,74 +65,81 @@ agent: {
 - **No `allowedTools`**: Agent has access to all MCP tools but NO native tools
 - **With `allowedTools`**: Agent only has access to tools matching the specified patterns
 
-## Creating New Native Tools
+## Creating Custom Native Tools
 
-Native tools are defined in `packages/server/src/tools/`. Each tool is a module that exports a `NativeTool` object.
+You can create your own native tools in your project and register them at runtime using `registerNativeTool()` from `@chaaskit/server`.
 
 ### Step 1: Create the Tool File
 
-Create a new file in `packages/server/src/tools/`:
+Create a new file in your project's `extensions/` directory (or anywhere in your project):
 
 ```typescript
-// packages/server/src/tools/my-tool.ts
-import type { NativeTool, ToolResult, ToolContext } from './types.js';
+// extensions/agents/weather-tool.ts
+import { registerNativeTool } from '@chaaskit/server';
+import type { NativeTool, ToolResult, ToolContext } from '@chaaskit/server';
 
-export const myTool: NativeTool = {
-  name: 'my-tool',
+const weatherTool: NativeTool = {
+  name: 'get-weather',
 
-  description: 'A description of what this tool does. This is shown to the LLM.',
+  description: 'Gets the current weather for a given city. Returns temperature, conditions, and forecast.',
 
   inputSchema: {
     type: 'object',
     properties: {
-      param1: {
+      city: {
         type: 'string',
-        description: 'Description of param1',
+        description: 'The city name to get weather for',
       },
-      param2: {
-        type: 'number',
-        description: 'Description of param2',
-        default: 10,
+      units: {
+        type: 'string',
+        description: 'Temperature units: "celsius" or "fahrenheit"',
+        default: 'celsius',
       },
     },
-    required: ['param1'],
+    required: ['city'],
   },
 
   async execute(input: Record<string, unknown>, context: ToolContext): Promise<ToolResult> {
-    const param1 = input.param1 as string;
-    const param2 = (input.param2 as number) || 10;
+    const city = input.city as string;
+    const units = (input.units as string) || 'celsius';
 
     try {
-      // Your tool logic here
-      const result = await doSomething(param1, param2);
+      const response = await fetch(
+        `https://api.weatherapi.com/v1/current.json?key=${process.env.WEATHER_API_KEY}&q=${encodeURIComponent(city)}`
+      );
+      const data = await response.json();
+
+      const temp = units === 'fahrenheit' ? data.current.temp_f : data.current.temp_c;
+      const text = `Weather in ${city}: ${temp}° ${units}, ${data.current.condition.text}`;
 
       return {
-        content: [{ type: 'text', text: result }],
+        content: [{ type: 'text', text }],
+        // Optional: structured data for a custom client renderer
+        structuredContent: {
+          city,
+          temperature: temp,
+          units,
+          condition: data.current.condition.text,
+          icon: data.current.condition.icon,
+        },
       };
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown error';
       return {
-        content: [{ type: 'text', text: `Error: ${message}` }],
+        content: [{ type: 'text', text: `Error fetching weather: ${message}` }],
         isError: true,
       };
     }
   },
 };
+
+// Register the tool - it becomes available immediately
+registerNativeTool(weatherTool);
 ```
 
-### Step 2: Register the Tool
+The tool file is automatically loaded by ChaasKit's extension loader when it's placed in `extensions/agents/`. Alternatively, you can import it explicitly in a custom server entry point.
 
-Add your tool to the registry in `packages/server/src/tools/index.ts`:
-
-```typescript
-import { myTool } from './my-tool.js';
-
-// Register built-in native tools
-nativeToolRegistry.set('web-scrape', webScrapeTool);
-nativeToolRegistry.set('my-tool', myTool);  // Add this line
-```
-
-### Step 3: Configure Agent Access
+### Step 2: Configure Agent Access
 
 Enable the tool for agents that should have access:
 
@@ -138,8 +149,27 @@ Enable the tool for agents that should have access:
   id: 'my-agent',
   name: 'My Agent',
   // ...
-  allowedTools: ['native:my-tool'],
+  allowedTools: ['native:get-weather'],
+  // Or use 'native:*' to enable all native tools
 }
+```
+
+### Step 3 (Optional): Add a Custom Client Renderer
+
+If your tool returns `structuredContent`, you can create a React component to render it in the chat UI. See [Custom Tool Renderers](#custom-tool-renderers) below.
+
+### How Extension Loading Works
+
+Server extensions in `extensions/agents/` are automatically imported when the server starts. Each file should call `registerNativeTool()` at the top level so the tool is registered as a side effect of the import. This is the same pattern used for custom agents (which call `registry.register('agent', ...)`).
+
+If you need more control over loading order, you can use a custom server entry point and import the tool file explicitly:
+
+```typescript
+// src/server.ts
+import { createApp } from '@chaaskit/server';
+import './my-tools/weather.js'; // Registers the tool on import
+
+const app = await createApp();
 ```
 
 ## Type Definitions
@@ -612,6 +642,89 @@ export const getPlanUsageTool: NativeTool = {
 5. **Use semantic HTML**: Helps with accessibility and debugging
 6. **Minimize JavaScript**: Keep widget logic simple and fast
 7. **Test both themes**: Verify your widget looks good in light and dark mode
+
+## Custom Tool Renderers
+
+Native tools have three rendering options in the chat UI, in order of priority:
+
+1. **Custom React renderer** - A React component registered via the client extension system. Best for tools that need interactive UI or tight integration with your app.
+2. **HTML widget template** - An HTML file rendered in a sandboxed iframe via `_meta`. Best for self-contained visualizations. See [Widget Support](#widget-support) above.
+3. **Plain text fallback** - The `content` array is displayed as formatted text.
+
+### Creating a React Renderer
+
+For native tools that return `structuredContent`, you can register a custom React component that renders the result inline in the chat:
+
+```tsx
+// extensions/tools/weather-renderer.tsx
+import { clientRegistry } from '@chaaskit/client/extensions';
+
+function WeatherRenderer({ toolResult }: { toolResult: { structuredContent?: Record<string, unknown> } }) {
+  const data = toolResult.structuredContent as {
+    city: string;
+    temperature: number;
+    units: string;
+    condition: string;
+  } | undefined;
+
+  if (!data) return null;
+
+  return (
+    <div className="rounded-lg border border-border p-4 bg-surface">
+      <div className="text-lg font-semibold text-text-primary">{data.city}</div>
+      <div className="text-3xl font-bold text-text-primary mt-1">
+        {data.temperature}° {data.units === 'fahrenheit' ? 'F' : 'C'}
+      </div>
+      <div className="text-text-secondary mt-1">{data.condition}</div>
+    </div>
+  );
+}
+
+clientRegistry.registerTool({
+  name: 'get-weather',       // Must match the native tool name
+  description: 'Weather display',
+  resultRenderer: WeatherRenderer,
+});
+```
+
+Import the renderer in your app so it's registered at load time:
+
+```tsx
+// app/root.tsx (add near the top)
+import '../extensions/tools/weather-renderer';
+```
+
+The renderer receives `toolCall` (the tool invocation) and `toolResult` (the result including `structuredContent`). See [Extensions > Custom Tool Renderers](./extensions.md#custom-tool-renderers) for more details.
+
+### Choosing Between Widgets and React Renderers
+
+| Feature | HTML Widget (`_meta`) | React Renderer |
+|---------|----------------------|----------------|
+| Sandboxed | Yes (iframe) | No (runs in app) |
+| Access to app state | No | Yes (hooks, context, etc.) |
+| Styling | Self-contained CSS | Tailwind utility classes |
+| Best for | Self-contained visualizations | Interactive UI, app integration |
+| Defined in | Server-side (tool's `_meta`) | Client-side (extension) |
+
+## Tool Confirmation
+
+Native tools participate in the same tool confirmation system as MCP tools. When tool confirmation is enabled, users are prompted to approve or reject tool calls before execution.
+
+The confirmation system uses the tool ID format `native:tool-name`. Configure it in your app config:
+
+```typescript
+// config/app.config.ts
+agent: {
+  toolConfirmation: {
+    mode: 'all',       // Require confirmation for all tools
+    // mode: 'none',   // No confirmation (default)
+    // mode: 'whitelist', allowList: ['native:web-scrape'],  // Only these need confirmation
+    // mode: 'blacklist', denyList: ['native:web-scrape'],   // All except these need confirmation
+  },
+}
+```
+
+Users can also "always allow" specific tools, which persists in their settings.
 
 ## Best Practices
 

@@ -131,6 +131,9 @@ When new versions are released, update your project:
 # Update dependencies
 pnpm update @chaaskit/server @chaaskit/client @chaaskit/db @chaaskit/shared
 
+# Sync routes and framework files from @chaaskit/client
+npx create-chaaskit sync
+
 # Sync the database schema (preserves your custom models)
 pnpm db:sync
 
@@ -140,6 +143,8 @@ pnpm db:generate
 # Push any schema changes
 pnpm db:push
 ```
+
+The `sync` command detects new routes added to `@chaaskit/client`, creates thin wrapper files, and updates `app/routes.ts`. It skips any routes you've customized (replaced the thin wrapper with your own implementation). Use `--dry-run` to preview changes without writing files.
 
 The `db:sync` command updates `prisma/schema/base.prisma` with the latest models from `@chaaskit/db` while preserving your custom models in `prisma/schema/custom.prisma`.
 

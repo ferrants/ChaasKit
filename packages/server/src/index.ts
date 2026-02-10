@@ -29,6 +29,17 @@ export {
 // Extension loader
 export { loadExtensions } from './extensions/loader.js';
 
+// Native tools
+export {
+  registerNativeTool,
+  getAllNativeTools,
+  getNativeTool,
+  type NativeTool,
+  type NativeToolForAgent,
+  type ToolContext,
+  type ToolResult,
+} from './tools/index.js';
+
 // Services
 export { createAgentService } from './services/agent.js';
 
