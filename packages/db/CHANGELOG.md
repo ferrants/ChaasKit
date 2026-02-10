@@ -1,5 +1,11 @@
 # @chaaskit/db
 
+## 0.1.7
+
+### Patch Changes
+
+- c6b4f2e: Fixing pricing page and added promo code entry form
+
 ## 0.1.6
 
 ### Patch Changes

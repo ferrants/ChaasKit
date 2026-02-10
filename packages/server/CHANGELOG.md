@@ -1,5 +1,14 @@
 # @chaaskit/server
 
+## 0.1.7
+
+### Patch Changes
+
+- c6b4f2e: Fixing pricing page and added promo code entry form
+- Updated dependencies [c6b4f2e]
+  - @chaaskit/db@0.1.7
+  - @chaaskit/shared@0.1.7
+
 ## 0.1.6
 
 ### Patch Changes
