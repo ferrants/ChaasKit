@@ -1,5 +1,16 @@
 # chaaskit-demo
 
+## 0.1.6
+
+### Patch Changes
+
+- ab41eab: Exported Native Tools utils
+- Updated dependencies [ab41eab]
+  - @chaaskit/client@0.1.6
+  - @chaaskit/db@0.1.6
+  - @chaaskit/server@0.1.6
+  - @chaaskit/shared@0.1.6
+
 ## 0.1.5
 
 ### Patch Changes

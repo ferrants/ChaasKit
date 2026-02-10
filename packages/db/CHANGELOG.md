@@ -1,5 +1,11 @@
 # @chaaskit/db
 
+## 0.1.6
+
+### Patch Changes
+
+- ab41eab: Exported Native Tools utils
+
 ## 0.1.5
 
 ### Patch Changes
