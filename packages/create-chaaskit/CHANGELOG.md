@@ -1,5 +1,11 @@
 # create-chaaskit
 
+## 0.1.4
+
+### Patch Changes
+
+- 3f9c735: Docs and creation template fixes
+
 ## 0.1.3
 
 ### Patch Changes

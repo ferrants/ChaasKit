@@ -1,5 +1,16 @@
 # chaaskit-demo
 
+## 0.1.4
+
+### Patch Changes
+
+- 3f9c735: Docs and creation template fixes
+- Updated dependencies [3f9c735]
+  - @chaaskit/client@0.1.4
+  - @chaaskit/db@0.1.4
+  - @chaaskit/server@0.1.4
+  - @chaaskit/shared@0.1.4
+
 ## 0.1.3
 
 ### Patch Changes
