@@ -381,7 +381,7 @@ export default function TeamSettingsPage() {
   };
 
   const handleUpgradeTeamPlan = () => {
-    navigate(appPath(`/pricing?teamId=${teamId}`));
+    navigate(`/pricing?teamId=${teamId}`);
   };
 
   const handleOpenTeamBillingPortal = async () => {

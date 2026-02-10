@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router';
-import { Check, Loader2, Users, User } from 'lucide-react';
+import { Check, Loader2, Users, User, ExternalLink } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useConfig } from '../contexts/ConfigContext';
 import { useTeam } from '../contexts/TeamContext';
+import { useBasePath } from '../hooks/useBasePath';
 
 interface Plan {
   id: string;
@@ -21,12 +22,16 @@ export default function PricingPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { teams } = useTeam();
+  const basePath = useBasePath();
 
   const [plans, setPlans] = useState<Plan[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [checkoutLoading, setCheckoutLoading] = useState<string | null>(null);
   const [selectedTeamId, setSelectedTeamId] = useState<string | null>(null);
   const [error, setError] = useState('');
+  const [currentPlan, setCurrentPlan] = useState<string | undefined>();
+  const [hasStripeCustomer, setHasStripeCustomer] = useState(false);
+  const [billingLoading, setBillingLoading] = useState(false);
 
   // Get teamId from query params if present
   const teamIdFromParams = searchParams.get('teamId');
@@ -46,15 +51,35 @@ export default function PricingPage() {
 
   async function loadPlans() {
     try {
-      const response = await fetch('/api/payments/plans');
+      const response = await fetch('/api/payments/plans', { credentials: 'include' });
       if (response.ok) {
         const data = await response.json();
         setPlans(data.plans);
+        if (data.currentPlan) setCurrentPlan(data.currentPlan);
+        if (data.hasStripeCustomer) setHasStripeCustomer(data.hasStripeCustomer);
       }
     } catch (err) {
       console.error('Failed to load plans:', err);
     } finally {
       setIsLoading(false);
+    }
+  }
+
+  async function handleManageSubscription() {
+    setBillingLoading(true);
+    try {
+      const response = await fetch('/api/payments/billing-portal', {
+        method: 'POST',
+        credentials: 'include',
+      });
+      if (response.ok) {
+        const { url } = await response.json();
+        window.location.href = url;
+      }
+    } catch (err) {
+      console.error('Failed to open billing portal:', err);
+    } finally {
+      setBillingLoading(false);
     }
   }
 
@@ -256,12 +281,20 @@ export default function PricingPage() {
                   )}
                 </ul>
 
+                {/* Current Plan Badge */}
+                {user && currentPlan === plan.id && (
+                  <div className="mt-4 inline-flex items-center gap-1.5 rounded-full bg-success/10 px-3 py-1 text-xs font-medium text-success">
+                    <Check size={12} />
+                    Current Plan
+                  </div>
+                )}
+
                 {/* CTA Button */}
                 <button
                   onClick={() => handleCheckout(plan.id)}
-                  disabled={plan.type === 'free' || checkoutLoading === plan.id}
-                  className={`mt-6 w-full rounded-lg py-2.5 text-sm font-medium transition-colors ${
-                    plan.type === 'free'
+                  disabled={plan.type === 'free' || checkoutLoading === plan.id || !!(user && currentPlan === plan.id)}
+                  className={`mt-4 w-full rounded-lg py-2.5 text-sm font-medium transition-colors ${
+                    (user && currentPlan === plan.id) || plan.type === 'free'
                       ? 'bg-background-secondary text-text-muted cursor-default'
                       : plan.id === 'pro'
                       ? 'bg-primary text-white hover:bg-primary-hover'
@@ -270,8 +303,10 @@ export default function PricingPage() {
                 >
                   {checkoutLoading === plan.id ? (
                     <Loader2 className="h-4 w-4 animate-spin mx-auto" />
-                  ) : plan.type === 'free' ? (
+                  ) : user && currentPlan === plan.id ? (
                     'Current Plan'
+                  ) : plan.type === 'free' ? (
+                    'Free'
                   ) : (
                     'Get Started'
                   )}
@@ -279,6 +314,24 @@ export default function PricingPage() {
               </div>
             ))}
         </div>
+
+        {/* Manage Subscription */}
+        {user && hasStripeCustomer && (
+          <div className="mt-8 text-center">
+            <button
+              onClick={handleManageSubscription}
+              disabled={billingLoading}
+              className="inline-flex items-center gap-2 rounded-lg border border-border bg-background-secondary px-4 py-2.5 text-sm font-medium text-text-primary hover:bg-background disabled:opacity-50"
+            >
+              {billingLoading ? (
+                <Loader2 size={16} className="animate-spin" />
+              ) : (
+                <ExternalLink size={16} />
+              )}
+              Manage Subscription
+            </button>
+          </div>
+        )}
 
         {/* Credits Section */}
         {filteredPlans.some((p) => p.type === 'credits') && (
@@ -304,7 +357,7 @@ export default function PricingPage() {
 
         {/* Back Link */}
         <div className="mt-8 text-center">
-          <Link to="/" className="text-sm text-text-muted hover:text-text-primary">
+          <Link to={user ? basePath : '/'} className="text-sm text-text-muted hover:text-text-primary">
             Back to {config.app.name}
           </Link>
         </div>

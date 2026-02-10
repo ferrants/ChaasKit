@@ -3,7 +3,7 @@ import Stripe from 'stripe';
 import { db } from '@chaaskit/db';
 import { HTTP_STATUS } from '@chaaskit/shared';
 import type { PlanScope } from '@chaaskit/shared';
-import { requireAuth } from '../middleware/auth.js';
+import { requireAuth, optionalAuth } from '../middleware/auth.js';
 import { AppError } from '../middleware/errorHandler.js';
 import { getConfig } from '../config/loader.js';
 import { getTeamSubscription, getPlanLimits } from '../services/usage.js';
@@ -130,8 +130,8 @@ async function notifyPaymentFailed(invoice: Stripe.Invoice): Promise<void> {
   });
 }
 
-// Get all plans (public endpoint for pricing page)
-paymentsRouter.get('/plans', async (_req, res, next) => {
+// Get all plans (public endpoint for pricing page, optionally returns current plan for authenticated users)
+paymentsRouter.get('/plans', optionalAuth, async (req, res, next) => {
   try {
     const config = getConfig();
 
@@ -152,7 +152,22 @@ paymentsRouter.get('/plans', async (_req, res, next) => {
       monthlyMessageLimit: (plan.params as { monthlyMessageLimit?: number }).monthlyMessageLimit,
     }));
 
-    res.json({ plans });
+    // If user is authenticated, include their current plan info
+    let currentPlan: string | undefined;
+    let hasStripeCustomer = false;
+
+    if (req.user) {
+      const user = await db.user.findUnique({
+        where: { id: req.user.id },
+        select: { plan: true, stripeCustomerId: true },
+      });
+      if (user) {
+        currentPlan = user.plan;
+        hasStripeCustomer = !!user.stripeCustomerId;
+      }
+    }
+
+    res.json({ plans, currentPlan, hasStripeCustomer });
   } catch (error) {
     next(error);
   }

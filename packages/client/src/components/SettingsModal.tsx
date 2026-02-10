@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate, Link } from 'react-router';
-import { X, Loader2, Check, BarChart3, CreditCard, ExternalLink, Key } from 'lucide-react';
+import { X, Loader2, Check, BarChart3, CreditCard, ExternalLink, Key, Tag } from 'lucide-react';
 import { useConfig } from '../contexts/ConfigContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
@@ -36,8 +36,13 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saved' | 'error'>('idle');
   const [isBillingLoading, setIsBillingLoading] = useState(false);
   const [canAccessApiKeys, setCanAccessApiKeys] = useState(false);
+  const [showPromoInput, setShowPromoInput] = useState(false);
+  const [promoCode, setPromoCode] = useState('');
+  const [promoLoading, setPromoLoading] = useState(false);
+  const [promoResult, setPromoResult] = useState<string | null>(null);
+  const [promoError, setPromoError] = useState<string | null>(null);
 
-  // Load settings and usage when modal opens
+  // Load settings and usage when modal opens, reset promo state when it closes
   useEffect(() => {
     if (isOpen && user) {
       loadSettings();
@@ -48,6 +53,12 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
           .then((res) => setCanAccessApiKeys(res.canAccess))
           .catch(() => setCanAccessApiKeys(false));
       }
+    }
+    if (!isOpen) {
+      setShowPromoInput(false);
+      setPromoCode('');
+      setPromoResult(null);
+      setPromoError(null);
     }
   }, [isOpen, user, config.api?.enabled]);
 
@@ -145,7 +156,25 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
 
   function handleUpgrade() {
     onClose();
-    navigate(appPath('/pricing'));
+    navigate('/pricing');
+  }
+
+  async function handleRedeemPromo() {
+    if (!promoCode.trim()) return;
+    setPromoLoading(true);
+    setPromoResult(null);
+    setPromoError(null);
+    try {
+      const res = await api.post<{ granted: number }>('/api/credits/redeem', { code: promoCode.trim() });
+      setPromoResult(`${res.granted} credits added!`);
+      setPromoCode('');
+      setShowPromoInput(false);
+      loadUsage();
+    } catch (err) {
+      setPromoError(err instanceof Error ? err.message : 'Failed to redeem code');
+    } finally {
+      setPromoLoading(false);
+    }
   }
 
   if (!isOpen) return null;
@@ -269,7 +298,46 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                           Manage Subscription
                         </button>
                       )}
+                      {config.credits?.promoEnabled && (
+                        <button
+                          onClick={() => { setShowPromoInput(!showPromoInput); setPromoError(null); setPromoResult(null); }}
+                          className="flex items-center gap-1.5 rounded-lg border border-border bg-background px-3 py-1.5 text-sm font-medium text-text-secondary hover:text-text-primary hover:bg-background-secondary"
+                        >
+                          <Tag size={14} />
+                          Redeem Code
+                        </button>
+                      )}
                     </div>
+
+                    {/* Promo Code Input */}
+                    {showPromoInput && (
+                      <div className="mt-3 flex gap-2">
+                        <input
+                          type="text"
+                          value={promoCode}
+                          onChange={(e) => setPromoCode(e.target.value)}
+                          onKeyDown={(e) => e.key === 'Enter' && handleRedeemPromo()}
+                          placeholder="Enter promo code"
+                          className="flex-1 rounded-lg border border-input-border bg-input-background px-3 py-1.5 text-sm text-text-primary placeholder-text-muted focus:border-primary focus:outline-none"
+                          autoFocus
+                        />
+                        <button
+                          onClick={handleRedeemPromo}
+                          disabled={promoLoading || !promoCode.trim()}
+                          className="rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-white hover:bg-primary-hover disabled:opacity-50"
+                        >
+                          {promoLoading ? <Loader2 size={14} className="animate-spin" /> : 'Apply'}
+                        </button>
+                      </div>
+                    )}
+
+                    {/* Promo Result/Error */}
+                    {promoResult && (
+                      <p className="mt-2 text-xs text-success">{promoResult}</p>
+                    )}
+                    {promoError && (
+                      <p className="mt-2 text-xs text-error">{promoError}</p>
+                    )}
                   </div>
                 </div>
               )}
