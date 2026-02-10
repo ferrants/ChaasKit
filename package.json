@@ -1,6 +1,6 @@
 {
   "name": "chaaskit-monorepo",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "private": true,
   "description": "A configurable, production-ready AI Chat SaaS template",
   "license": "MIT",
