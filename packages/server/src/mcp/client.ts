@@ -33,6 +33,10 @@ class MCPClientManager {
   // Key format: `${userId}:${serverId}`
   private userClients = new Map<string, ManagedClient>();
 
+  // Per-team clients for team-credential servers
+  // Key format: `team:${teamId}:${serverId}`
+  private teamClients = new Map<string, ManagedClient>();
+
   // Cleanup interval handle
   private cleanupInterval: ReturnType<typeof setInterval> | null = null;
 
@@ -41,13 +45,19 @@ class MCPClientManager {
     this.cleanupInterval = setInterval(() => this.cleanupStaleClients(), 60000);
   }
 
-  // Clean up stale user clients
+  // Clean up stale user and team clients
   private cleanupStaleClients(): void {
     const now = Date.now();
     for (const [key, managedClient] of this.userClients) {
       if (now - managedClient.lastUsed > USER_CLIENT_TTL_MS) {
         console.log(`[MCP] Cleaning up stale user client: ${key}`);
         this.disconnectUserClient(key);
+      }
+    }
+    for (const [key, managedClient] of this.teamClients) {
+      if (now - managedClient.lastUsed > USER_CLIENT_TTL_MS) {
+        console.log(`[MCP] Cleaning up stale team client: ${key}`);
+        this.disconnectTeamClient(key);
       }
     }
   }
@@ -97,6 +107,24 @@ class MCPClientManager {
     await this.disconnectUserClient(key);
   }
 
+  private async disconnectTeamClient(key: string): Promise<void> {
+    const managedClient = this.teamClients.get(key);
+    if (managedClient) {
+      try {
+        await managedClient.client.close();
+      } catch (error) {
+        console.error(`[MCP] Error closing team client ${key}:`, error);
+      }
+      this.teamClients.delete(key);
+    }
+  }
+
+  // Disconnect a team's client for a specific server (e.g., after credential change)
+  async disconnectTeam(teamId: string, serverId: string): Promise<void> {
+    const key = `team:${teamId}:${serverId}`;
+    await this.disconnectTeamClient(key);
+  }
+
   isConnected(serverId: string): boolean {
     return this.globalClients.has(serverId);
   }
@@ -121,14 +149,15 @@ class MCPClientManager {
     return allTools;
   }
 
-  // Get or list all tools available to a user (including user-credential servers)
+  // Get or list all tools available to a user (including user-credential and team-credential servers)
   async listAllToolsForUser(
     userId: string | undefined,
-    serverConfigs: MCPServerConfig[]
+    serverConfigs: MCPServerConfig[],
+    teamId?: string | null
   ): Promise<Array<MCPTool & { serverId: string }>> {
     const allTools: Array<MCPTool & { serverId: string }> = [];
 
-    console.log(`[MCP] listAllToolsForUser: userId=${userId || 'anonymous'}, ${serverConfigs.length} server configs`);
+    console.log(`[MCP] listAllToolsForUser: userId=${userId || 'anonymous'}, teamId=${teamId || 'none'}, ${serverConfigs.length} server configs`);
 
     for (const config of serverConfigs) {
       if (!config.enabled) {
@@ -148,6 +177,28 @@ class MCPClientManager {
           }
         } else {
           console.log(`[MCP]   - ${config.name} (${config.id}): NO global client connected`);
+        }
+        continue;
+      }
+
+      // For team-apikey/team-oauth, only available in team threads
+      if (authMode === 'team-apikey' || authMode === 'team-oauth') {
+        if (teamId) {
+          try {
+            const managedClient = await this.getClientForTeam(config.id, teamId, config);
+            if (managedClient) {
+              console.log(`[MCP]   - ${config.name} (${config.id}): ${managedClient.tools.length} tools from team client`);
+              for (const tool of managedClient.tools) {
+                allTools.push({ ...tool, serverId: config.id });
+              }
+            } else {
+              console.log(`[MCP]   - ${config.name} (${config.id}): NO team credentials`);
+            }
+          } catch (error) {
+            console.log(`[MCP]   - ${config.name} (${config.id}): ERROR - ${error instanceof Error ? error.message : error}`);
+          }
+        } else {
+          console.log(`[MCP]   - ${config.name} (${config.id}): SKIPPED (requires team context, not a team thread)`);
         }
         continue;
       }
@@ -193,19 +244,48 @@ class MCPClientManager {
     return this.executeToolCall(managedClient, serverId, toolName, args);
   }
 
-  // Call a tool with user context (handles user-credential servers)
+  // Call a tool with user context (handles user-credential and team-credential servers)
   async callToolForUser(
     userId: string | undefined,
     serverId: string,
     toolName: string,
     args: Record<string, unknown>,
-    config: MCPServerConfig
+    config: MCPServerConfig,
+    teamId?: string | null
   ): Promise<MCPToolResponse> {
     const authMode = config.authMode || 'none';
 
     // For none/admin auth modes, use global client
     if (authMode === 'none' || authMode === 'admin') {
       return this.callTool(serverId, toolName, args);
+    }
+
+    // For team-credential modes, get team-specific client
+    if (authMode === 'team-apikey' || authMode === 'team-oauth') {
+      if (!teamId) {
+        return {
+          content: [{ type: 'text', text: 'Team tools are only available in team threads' }],
+          isError: true,
+        };
+      }
+
+      try {
+        const managedClient = await this.getClientForTeam(serverId, teamId, config);
+        if (!managedClient) {
+          return {
+            content: [{ type: 'text', text: 'Please configure team credentials for this server in Team Settings' }],
+            isError: true,
+          };
+        }
+
+        return this.executeToolCall(managedClient, serverId, toolName, args);
+      } catch (error) {
+        console.error(`[MCP] Team tool call error:`, error);
+        return {
+          content: [{ type: 'text', text: error instanceof Error ? error.message : 'Tool execution failed' }],
+          isError: true,
+        };
+      }
     }
 
     // For user-credential modes, get user-specific client
@@ -317,6 +397,39 @@ class MCPClientManager {
     const managedClient = await this.createUserClient(config, credential);
     if (managedClient) {
       this.userClients.set(key, managedClient);
+    }
+
+    return managedClient;
+  }
+
+  // Get or create a team-specific client
+  async getClientForTeam(
+    serverId: string,
+    teamId: string,
+    config: MCPServerConfig
+  ): Promise<ManagedClient | null> {
+    const key = `team:${teamId}:${serverId}`;
+
+    // Check existing client
+    const existing = this.teamClients.get(key);
+    if (existing) {
+      existing.lastUsed = Date.now();
+      return existing;
+    }
+
+    // Get team's credential
+    const credential = await db.mCPCredential.findFirst({
+      where: { teamId, serverId },
+    });
+
+    if (!credential) {
+      return null;
+    }
+
+    // Create client with team's credentials (same transport/auth logic as user clients)
+    const managedClient = await this.createUserClient(config, credential);
+    if (managedClient) {
+      this.teamClients.set(key, managedClient);
     }
 
     return managedClient;
@@ -626,18 +739,50 @@ class MCPClientManager {
     }
   }
 
-  // Read a resource for a specific user (handles user-credential servers)
+  // Read a resource for a specific user (handles user-credential and team-credential servers)
   async readResourceForUser(
     userId: string,
     serverId: string,
     uri: string,
-    config: MCPServerConfig
+    config: MCPServerConfig,
+    teamId?: string | null
   ): Promise<{ text?: string; blob?: string; mimeType?: string } | null> {
     const authMode = config.authMode || 'none';
 
     // For none/admin auth modes, use global client
     if (authMode === 'none' || authMode === 'admin') {
       return this.readResource(serverId, uri);
+    }
+
+    // For team-credential modes, get team-specific client
+    if ((authMode === 'team-apikey' || authMode === 'team-oauth') && teamId) {
+      try {
+        const managedClient = await this.getClientForTeam(serverId, teamId, config);
+        if (!managedClient) {
+          console.error(`[MCP] No team client available for ${serverId}`);
+          return null;
+        }
+
+        console.log(`[MCP] Reading resource ${uri} from ${serverId} for team ${teamId}`);
+        const result = await managedClient.client.readResource({ uri });
+
+        if (result.contents.length === 0) {
+          console.log(`[MCP] Resource ${uri} returned no contents`);
+          return null;
+        }
+
+        const content = result.contents[0] as { uri: string; mimeType?: string; text?: string; blob?: string };
+        console.log(`[MCP] Resource ${uri} read successfully, mimeType=${content.mimeType}`);
+
+        return {
+          text: content.text,
+          blob: content.blob,
+          mimeType: content.mimeType,
+        };
+      } catch (error) {
+        console.error(`[MCP] Failed to read resource ${uri} for team:`, error);
+        return null;
+      }
     }
 
     // For user-credential modes, get user-specific client
@@ -679,6 +824,10 @@ class MCPClientManager {
     // Disconnect user clients
     const userKeys = Array.from(this.userClients.keys());
     await Promise.all(userKeys.map(key => this.disconnectUserClient(key)));
+
+    // Disconnect team clients
+    const teamKeys = Array.from(this.teamClients.keys());
+    await Promise.all(teamKeys.map(key => this.disconnectTeamClient(key)));
 
     // Stop cleanup interval
     if (this.cleanupInterval) {

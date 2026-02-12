@@ -1,5 +1,5 @@
 export type MCPTransport = 'stdio' | 'sse' | 'streamable-http';
-export type MCPAuthMode = 'none' | 'admin' | 'user-apikey' | 'user-oauth';
+export type MCPAuthMode = 'none' | 'admin' | 'user-apikey' | 'user-oauth' | 'team-apikey' | 'team-oauth';
 
 // Tool confirmation configuration types
 export type ToolConfirmationMode = 'none' | 'all' | 'whitelist' | 'blacklist';

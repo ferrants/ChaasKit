@@ -3,6 +3,7 @@ import { db } from '@chaaskit/db';
 import { HTTP_STATUS } from '@chaaskit/shared';
 import type { MCPCredentialStatus } from '@chaaskit/shared';
 import { requireAuth } from '../middleware/auth.js';
+import { requireTeamRole } from '../middleware/team.js';
 import { AppError } from '../middleware/errorHandler.js';
 import { getConfig } from '../config/loader.js';
 import { mcpManager } from '../mcp/client.js';
@@ -360,15 +361,35 @@ mcpRouter.get('/oauth/callback', async (req, res, next) => {
       return;
     }
 
-    // Parse state: serverId:oauthState
-    const stateIndex = state.indexOf(':');
-    if (stateIndex === -1) {
-      res.redirect(`${settingsUrl}?error=oauth_invalid_state`);
-      return;
-    }
+    // Parse state: either "serverId:oauthState" (user) or "team:teamId:serverId:oauthState" (team)
+    let serverId: string;
+    let oauthState: string;
+    let isTeamOAuth = false;
+    let teamId: string | undefined;
 
-    const serverId = state.slice(0, stateIndex);
-    const oauthState = state.slice(stateIndex + 1);
+    if (state.startsWith('team:')) {
+      // Team OAuth: "team:teamId:serverId:oauthState"
+      const parts = state.slice(5); // Remove "team:" prefix
+      const firstColon = parts.indexOf(':');
+      const secondColon = parts.indexOf(':', firstColon + 1);
+      if (firstColon === -1 || secondColon === -1) {
+        res.redirect(`${settingsUrl}?error=oauth_invalid_state`);
+        return;
+      }
+      teamId = parts.slice(0, firstColon);
+      serverId = parts.slice(firstColon + 1, secondColon);
+      oauthState = parts.slice(secondColon + 1);
+      isTeamOAuth = true;
+    } else {
+      // User OAuth: "serverId:oauthState"
+      const stateIndex = state.indexOf(':');
+      if (stateIndex === -1) {
+        res.redirect(`${settingsUrl}?error=oauth_invalid_state`);
+        return;
+      }
+      serverId = state.slice(0, stateIndex);
+      oauthState = state.slice(stateIndex + 1);
+    }
 
     if (!config.mcp) {
       res.redirect(`${settingsUrl}?error=mcp_not_configured`);
@@ -386,6 +407,7 @@ mcpRouter.get('/oauth/callback', async (req, res, next) => {
       where: {
         serverId,
         oauthState,
+        ...(isTeamOAuth ? { teamId } : {}),
       },
     });
 
@@ -473,13 +495,238 @@ mcpRouter.get('/oauth/callback', async (req, res, next) => {
       },
     });
 
-    // Disconnect existing user client so it reconnects with new credentials
-    await mcpManager.disconnectUser(credential.userId, serverId);
-
-    res.redirect(`${appUrl}/?openSettings=true&success=oauth_connected&server=${serverId}`);
+    // Disconnect existing client so it reconnects with new credentials
+    if (isTeamOAuth && teamId) {
+      await mcpManager.disconnectTeam(teamId, serverId);
+      res.redirect(`${appUrl}/team/${teamId}/settings?success=oauth_connected&server=${serverId}`);
+    } else {
+      await mcpManager.disconnectUser(credential.userId, serverId);
+      res.redirect(`${appUrl}/?openSettings=true&success=oauth_connected&server=${serverId}`);
+    }
   } catch (error) {
     console.error('[MCP OAuth] Callback error:', error);
     const appUrl = process.env.APP_URL || 'http://localhost:5173';
     res.redirect(`${appUrl}/?openSettings=true&error=oauth_callback_error`);
+  }
+});
+
+// ============================================================
+// Team Credential Management Endpoints
+// ============================================================
+
+// List credential status for all servers requiring team credentials
+mcpRouter.get('/team/:teamId/credentials', requireAuth, requireTeamRole('admin'), async (req, res, next) => {
+  try {
+    const config = getConfig();
+    const { teamId } = req.params;
+
+    if (!config.mcp) {
+      res.json({ credentials: [] });
+      return;
+    }
+
+    // Get team's existing credentials
+    const teamCredentials = await db.mCPCredential.findMany({
+      where: { teamId },
+      select: { serverId: true, credentialType: true },
+    });
+
+    const credentialMap = new Map(
+      teamCredentials.map((c) => [c.serverId, c.credentialType])
+    );
+
+    // Build status for servers that require team credentials
+    const credentials: MCPCredentialStatus[] = config.mcp.servers
+      .filter((server) => {
+        const authMode = server.authMode || 'none';
+        return authMode === 'team-apikey' || authMode === 'team-oauth';
+      })
+      .map((server) => ({
+        serverId: server.id,
+        serverName: server.name,
+        authMode: server.authMode || 'none',
+        hasCredential: credentialMap.has(server.id),
+        credentialType: credentialMap.get(server.id) as 'api_key' | 'oauth' | undefined,
+        userInstructions: server.userInstructions,
+      }));
+
+    res.json({ credentials });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Set API key for a team server
+mcpRouter.post('/team/:teamId/credentials/:serverId/apikey', requireAuth, requireTeamRole('admin'), async (req, res, next) => {
+  try {
+    const config = getConfig();
+    const { teamId, serverId } = req.params;
+    const { apiKey } = req.body;
+    const userId = req.user!.id;
+
+    if (!apiKey || typeof apiKey !== 'string') {
+      throw new AppError(HTTP_STATUS.BAD_REQUEST, 'API key is required');
+    }
+
+    if (!config.mcp) {
+      throw new AppError(HTTP_STATUS.BAD_REQUEST, 'MCP is not configured');
+    }
+
+    const serverConfig = config.mcp.servers.find((s) => s.id === serverId);
+    if (!serverConfig) {
+      throw new AppError(HTTP_STATUS.NOT_FOUND, 'Server not found');
+    }
+
+    if (serverConfig.authMode !== 'team-apikey') {
+      throw new AppError(HTTP_STATUS.BAD_REQUEST, 'Server does not accept team API keys');
+    }
+
+    // Encrypt and store the credential
+    const encryptedData = encryptCredential({ apiKey });
+
+    // Find existing team credential for this server
+    const existing = await db.mCPCredential.findFirst({
+      where: { teamId, serverId },
+    });
+
+    if (existing) {
+      await db.mCPCredential.update({
+        where: { id: existing.id },
+        data: {
+          credentialType: 'api_key',
+          encryptedData,
+          oauthState: null,
+          codeVerifier: null,
+          updatedAt: new Date(),
+        },
+      });
+    } else {
+      await db.mCPCredential.create({
+        data: {
+          userId, // Audit trail: who set this credential
+          teamId,
+          serverId,
+          credentialType: 'api_key',
+          encryptedData,
+        },
+      });
+    }
+
+    // Disconnect existing team client so it reconnects with new credentials
+    await mcpManager.disconnectTeam(teamId, serverId);
+
+    res.json({ success: true });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Remove team credential for a server
+mcpRouter.delete('/team/:teamId/credentials/:serverId', requireAuth, requireTeamRole('admin'), async (req, res, next) => {
+  try {
+    const { teamId, serverId } = req.params;
+
+    await db.mCPCredential.deleteMany({
+      where: { teamId, serverId },
+    });
+
+    // Disconnect team client
+    await mcpManager.disconnectTeam(teamId, serverId);
+
+    res.json({ success: true });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Start OAuth flow for a team server - returns authorization URL
+mcpRouter.get('/team/:teamId/oauth/:serverId/authorize', requireAuth, requireTeamRole('admin'), async (req, res, next) => {
+  try {
+    const config = getConfig();
+    const { teamId, serverId } = req.params;
+    const userId = req.user!.id;
+
+    if (!config.mcp) {
+      throw new AppError(HTTP_STATUS.BAD_REQUEST, 'MCP is not configured');
+    }
+
+    const serverConfig = config.mcp.servers.find((s) => s.id === serverId);
+    if (!serverConfig) {
+      throw new AppError(HTTP_STATUS.NOT_FOUND, 'Server not found');
+    }
+
+    if (serverConfig.authMode !== 'team-oauth') {
+      throw new AppError(HTTP_STATUS.BAD_REQUEST, 'Server does not support team OAuth');
+    }
+
+    // Discover OAuth configuration (endpoints + client registration)
+    const oauthConfig = await discoverOAuthConfig(serverConfig);
+    if (!oauthConfig) {
+      throw new AppError(
+        HTTP_STATUS.INTERNAL_SERVER_ERROR,
+        'Failed to discover OAuth configuration for this server'
+      );
+    }
+
+    // Generate PKCE challenge and state
+    const { codeVerifier, codeChallenge } = generatePKCE();
+    const state = generateOAuthState();
+
+    // Store state and code verifier in credential record
+    const encryptedVerifier = encryptCredential({ codeVerifier });
+
+    // Find existing team credential for this server
+    const existing = await db.mCPCredential.findFirst({
+      where: { teamId, serverId },
+    });
+
+    if (existing) {
+      await db.mCPCredential.update({
+        where: { id: existing.id },
+        data: {
+          oauthState: state,
+          codeVerifier: encryptedVerifier,
+          updatedAt: new Date(),
+        },
+      });
+    } else {
+      await db.mCPCredential.create({
+        data: {
+          userId, // Audit trail: who initiated the OAuth flow
+          teamId,
+          serverId,
+          credentialType: 'oauth',
+          encryptedData: '', // Will be updated after OAuth completes
+          oauthState: state,
+          codeVerifier: encryptedVerifier,
+        },
+      });
+    }
+
+    // Build authorization URL
+    const apiUrl = process.env.API_URL || 'http://localhost:3000';
+    const redirectUri = `${apiUrl}/api/mcp/oauth/callback`;
+
+    const authUrl = new URL(oauthConfig.authorizationEndpoint);
+    authUrl.searchParams.set('client_id', oauthConfig.clientId);
+    authUrl.searchParams.set('redirect_uri', redirectUri);
+    authUrl.searchParams.set('response_type', 'code');
+    // State format: team:teamId:serverId:oauthState
+    authUrl.searchParams.set('state', `team:${teamId}:${serverId}:${state}`);
+    authUrl.searchParams.set('code_challenge', codeChallenge);
+    authUrl.searchParams.set('code_challenge_method', 'S256');
+
+    // RFC 8707: Resource indicator for audience binding (required by MCP spec)
+    if (serverConfig.url) {
+      authUrl.searchParams.set('resource', serverConfig.url);
+    }
+
+    if (oauthConfig.scopes && oauthConfig.scopes.length > 0) {
+      authUrl.searchParams.set('scope', oauthConfig.scopes.join(' '));
+    }
+
+    res.json({ authorizationUrl: authUrl.toString() });
+  } catch (error) {
+    next(error);
   }
 });

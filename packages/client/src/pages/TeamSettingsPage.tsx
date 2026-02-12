@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link, Navigate, useSearchParams } from 'react-router';
 import { CreditCard, ExternalLink, Loader2, X, MessageSquare } from 'lucide-react';
+import TeamMCPCredentialsSection from '../components/TeamMCPCredentialsSection';
 import { useTeam } from '../contexts/TeamContext';
 import { useAuth } from '../contexts/AuthContext';
 import { useConfig } from '../contexts/ConfigContext';
@@ -82,6 +83,9 @@ export default function TeamSettingsPage() {
   const isAdmin = currentTeamRole === 'owner' || currentTeamRole === 'admin';
   const teamsEnabled = config.teams?.enabled ?? false;
   const slackEnabled = (config as unknown as { slack?: { enabled: boolean } }).slack?.enabled ?? false;
+  const hasTeamMcpServers = (config as unknown as { mcp?: { servers?: Array<{ authMode?: string }> } }).mcp?.servers?.some(
+    (s) => s.authMode === 'team-apikey' || s.authMode === 'team-oauth'
+  ) ?? false;
 
   useEffect(() => {
     if (teamId && teamsEnabled) {
@@ -147,6 +151,15 @@ export default function TeamSettingsPage() {
       setSlackStatus(null);
     }
   }, [teamId, teamsEnabled, slackEnabled]);
+
+  // Check for MCP OAuth connection status in URL params
+  useEffect(() => {
+    const successParam = searchParams.get('success');
+    const serverParam = searchParams.get('server');
+    if (successParam === 'oauth_connected' && serverParam) {
+      setSuccess(`Tool connection established successfully`);
+    }
+  }, [searchParams]);
 
   // Check for Slack connection status in URL params
   useEffect(() => {
@@ -764,6 +777,11 @@ export default function TeamSettingsPage() {
               </>
             )}
           </div>
+        )}
+
+        {/* Team Tool Connections */}
+        {hasTeamMcpServers && isAdmin && teamId && (
+          <TeamMCPCredentialsSection teamId={teamId} />
         )}
 
         {/* Team Name */}

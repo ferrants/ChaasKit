@@ -330,7 +330,7 @@ chatRouter.post('/', optionalAuth, optionalVerifiedEmail, async (req, res, next)
     // Get available MCP tools (including user-credential servers)
     const mcpServers = config.mcp?.servers || [];
     console.log(`[Chat] Fetching MCP tools for user ${req.user?.id || 'anonymous'}...`);
-    const allMcpTools = await mcpManager.listAllToolsForUser(req.user?.id, mcpServers);
+    const allMcpTools = await mcpManager.listAllToolsForUser(req.user?.id, mcpServers, thread.teamId);
 
     // Get native tools available to this agent
     const nativeTools = getNativeToolsForAgentFiltered(threadAgentId);
@@ -515,7 +515,8 @@ chatRouter.post('/', optionalAuth, optionalVerifiedEmail, async (req, res, next)
                   toolCall.serverId,
                   toolCall.name,
                   toolCall.input,
-                  serverConfig!
+                  serverConfig!,
+                  thread.teamId
                 );
               }
             }
@@ -545,7 +546,8 @@ chatRouter.post('/', optionalAuth, optionalVerifiedEmail, async (req, res, next)
                 toolCall.serverId,
                 toolCall.name,
                 toolCall.input,
-                serverConfig!
+                serverConfig!,
+                thread.teamId
               );
             }
           }
@@ -592,7 +594,8 @@ chatRouter.post('/', optionalAuth, optionalVerifiedEmail, async (req, res, next)
                 req.user?.id || '',
                 toolCall.serverId,
                 resourceUri,
-                serverConfig!
+                serverConfig!,
+                thread.teamId
               );
               if (uiResource) {
                 console.log(`[Chat] Fetched UI resource: ${resourceUri}, mimeType=${uiResource.mimeType}, length=${uiResource.text?.length || uiResource.blob?.length || 0}`);
