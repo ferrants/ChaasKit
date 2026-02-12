@@ -252,6 +252,7 @@ model Team {
   invites          TeamInvite[]
   apiKeys          ApiKey[]
   documents        Document[]
+  mcpCredentials   MCPCredential[]
   slackIntegration SlackIntegration?
   scheduledPrompts ScheduledPrompt[]
   usageMeters      UsageMeter[]
@@ -297,6 +298,8 @@ model MCPCredential {
   id             String    @id @default(cuid())
   userId         String
   user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  teamId         String?
+  team           Team?     @relation(fields: [teamId], references: [id], onDelete: Cascade)
   serverId       String
   credentialType String    // 'api_key' | 'oauth'
   encryptedData  String    // Encrypted JSON: {apiKey} or {accessToken, refreshToken, expiresAt}
@@ -306,7 +309,9 @@ model MCPCredential {
   updatedAt      DateTime  @updatedAt
 
   @@unique([userId, serverId])
+  @@unique([teamId, serverId])
   @@index([userId])
+  @@index([teamId])
 }
 
 // API Keys for programmatic access

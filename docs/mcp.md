@@ -1,6 +1,6 @@
 # MCP Integration
 
-The Model Context Protocol (MCP) enables AI agents to use external tools. This template includes full MCP support for tool discovery, execution, and per-user authentication.
+The Model Context Protocol (MCP) enables AI agents to use external tools. This template includes full MCP support for tool discovery, execution, and per-user or per-team authentication.
 
 ## Overview
 
@@ -20,7 +20,7 @@ User Message --> Chat API --> AI Agent (Anthropic/OpenAI)
                                   |
                              MCP Client Manager
                                   |
-                             Get User Credentials (if needed)
+                             Get User/Team Credentials (if needed)
                                   |
                              Execute Tool
                                   |
@@ -82,6 +82,16 @@ mcp: {
       },
       userInstructions: 'Connect your GitHub account to use repository tools',
     },
+    // Streamable HTTP with team API key (team admin provides key, shared in team threads)
+    {
+      id: 'jira-tools',
+      name: 'Jira',
+      transport: 'streamable-http',
+      url: 'https://jira-mcp.example.com',
+      enabled: true,
+      authMode: 'team-apikey',
+      userInstructions: 'Ask your team admin to configure the Jira API key in Team Settings',
+    },
   ],
   allowUserServers: true,
   toolConfirmation: {
@@ -104,7 +114,7 @@ mcp: {
 | `args` | string[] | Command arguments (stdio only) |
 | `url` | string | Server URL (sse/streamable-http) |
 | `enabled` | boolean | Enable/disable server |
-| `authMode` | `'none'` \| `'admin'` \| `'user-apikey'` \| `'user-oauth'` | Authentication mode |
+| `authMode` | `'none'` \| `'admin'` \| `'user-apikey'` \| `'user-oauth'` \| `'team-apikey'` \| `'team-oauth'` | Authentication mode |
 | `adminApiKeyEnvVar` | string | Env var name for admin API key |
 | `oauth` | object | OAuth configuration (see below) |
 | `userInstructions` | string | Help text shown to users |
@@ -228,6 +238,37 @@ Each user authenticates via OAuth 2.0. Supports:
 }
 ```
 
+### Team API Key (`team-apikey`)
+
+A team admin provides a shared API key that all team members use in team threads. Credentials are configured in Team Settings and only work in team threads (not personal threads).
+
+```typescript
+{
+  authMode: 'team-apikey',
+  userInstructions: 'Ask your team admin to configure the API key in Team Settings',
+}
+```
+
+### Team OAuth (`team-oauth`)
+
+A team admin authenticates via OAuth once and all team members use the shared credential in team threads. Supports the same OAuth configuration options as `user-oauth`.
+
+```typescript
+{
+  authMode: 'team-oauth',
+  oauth: {
+    authorizationEndpoint: 'https://provider.com/oauth/authorize',
+    tokenEndpoint: 'https://provider.com/oauth/token',
+    clientId: '${OAUTH_CLIENT_ID}',
+    clientSecretEnvVar: 'OAUTH_CLIENT_SECRET',
+    scopes: ['read', 'write'],
+  },
+  userInstructions: 'Team admin can connect this integration in Team Settings',
+}
+```
+
+**Note**: Team credentials are scoped to team threads only. Tools with `team-apikey` or `team-oauth` auth modes will not appear in personal threads.
+
 ## OAuth Auto-Discovery
 
 For servers that support RFC 9728 or RFC 8414, OAuth configuration can be auto-discovered:
@@ -256,6 +297,25 @@ Users manage their MCP credentials in the Settings modal:
 - **Disconnect**: Remove stored credentials
 
 Credentials are encrypted at rest using AES-256-GCM.
+
+## Team Credential Management
+
+Team admins (owner or admin role) manage shared MCP credentials in the Team Settings page:
+
+- **API Key servers**: Text input to enter/update the team API key
+- **OAuth servers**: "Connect" button to start OAuth flow on behalf of the team
+- **Disconnect**: Remove stored team credentials
+
+Team credentials are only usable in team threads. When a team member chats in a team thread, the AI agent can use tools authenticated with the team's credentials. In personal threads, team-auth tools will not appear.
+
+### Permissions
+
+| Role | Can manage team MCP credentials |
+|------|--------------------------------|
+| Owner | Yes |
+| Admin | Yes |
+| Member | No |
+| Viewer | No |
 
 ### Environment Variables
 
@@ -388,6 +448,47 @@ Exchanges code for tokens and stores credentials.
 DELETE /api/mcp/credentials/:serverId
 Authorization: Bearer <token>
 ```
+
+### Team Credential Status
+
+```http
+GET /api/mcp/team/:teamId/credentials
+Authorization: Bearer <token>
+```
+
+Requires admin role in the team.
+
+### Set Team API Key
+
+```http
+POST /api/mcp/team/:teamId/credentials/:serverId/apikey
+Authorization: Bearer <token>
+Content-Type: application/json
+
+{
+  "apiKey": "sk-..."
+}
+```
+
+Requires admin role in the team.
+
+### Start Team OAuth Flow
+
+```http
+GET /api/mcp/team/:teamId/oauth/:serverId/authorize
+Authorization: Bearer <token>
+```
+
+Requires admin role in the team. Returns redirect URL for OAuth authorization.
+
+### Remove Team Credentials
+
+```http
+DELETE /api/mcp/team/:teamId/credentials/:serverId
+Authorization: Bearer <token>
+```
+
+Requires admin role in the team.
 
 ## Agentic Loop
 
@@ -553,7 +654,7 @@ During streaming, tool confirmation uses these events:
 ## Security Considerations
 
 1. **Credential Encryption**: All credentials encrypted at rest with AES-256-GCM
-2. **Per-User Isolation**: User credentials never shared between users
+2. **Credential Isolation**: User credentials are never shared between users; team credentials are shared only within the team and only in team threads
 3. **OAuth Security**: PKCE used for all OAuth flows
 4. **Path Restrictions**: File system servers should be scoped to specific directories
 5. **Tool Confirmation**: Use `toolConfirmation` with `mode: 'all'` or `blacklist` for sensitive operations
