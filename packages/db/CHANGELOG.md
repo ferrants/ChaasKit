@@ -1,5 +1,11 @@
 # @chaaskit/db
 
+## 0.1.8
+
+### Patch Changes
+
+- fe5aafb: Added team-based mcp authentication
+
 ## 0.1.7
 
 ### Patch Changes

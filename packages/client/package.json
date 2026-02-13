@@ -1,6 +1,6 @@
 {
   "name": "@chaaskit/client",
-  "version": "0.1.7",
+  "version": "0.1.8",
   "description": "React frontend client for ChaasKit AI chat applications",
   "license": "MIT",
   "author": "Matt Ferrante <@ferrants>",
@@ -74,7 +74,7 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
-    "@chaaskit/shared": "^0.1.7",
+    "@chaaskit/shared": "^0.1.8",
     "lucide-react": "^0.321.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
