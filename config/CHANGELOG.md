@@ -1,5 +1,13 @@
 # @chaaskit/config
 
+## 0.1.8
+
+### Patch Changes
+
+- fe5aafb: Added team-based mcp authentication
+- Updated dependencies [fe5aafb]
+  - @chaaskit/shared@0.1.8
+
 ## 0.1.7
 
 ### Patch Changes
