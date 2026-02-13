@@ -16,6 +16,7 @@ export default function RegisterPage() {
 
   const inviteToken = searchParams.get('invite') || undefined;
   const referralCode = searchParams.get('ref') || undefined;
+  const redirectPath = searchParams.get('redirect');
   const gating = config.auth.gating;
   const signupsRestricted = gating?.mode && gating.mode !== 'open' && !inviteToken;
   const waitlistEnabled = gating?.waitlistEnabled ?? false;
@@ -47,6 +48,8 @@ export default function RegisterPage() {
       });
       if (requiresVerification) {
         navigate('/verify-email');
+      } else if (redirectPath && redirectPath.startsWith('/')) {
+        navigate(redirectPath);
       } else {
         navigate(appPath('/'));
       }
@@ -213,7 +216,7 @@ export default function RegisterPage() {
         {!signupsRestricted && (
           <p className="mt-6 text-center text-sm text-text-secondary">
             Already have an account?{' '}
-            <Link to="/login" className="text-primary hover:underline">
+            <Link to={redirectPath ? `/login?redirect=${encodeURIComponent(redirectPath)}` : '/login'} className="text-primary hover:underline">
               Sign in
             </Link>
           </p>

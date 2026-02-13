@@ -46,9 +46,13 @@ export async function action({ request }: Route.ActionArgs) {
     return redirect('/verify-email');
   }
 
-  // Forward the session cookie and redirect to chat
+  // Get redirect URL from query params or default to /chat
+  const url = new URL(request.url);
+  const redirectTo = url.searchParams.get('redirect') || '/chat';
+
+  // Forward the session cookie and redirect
   const setCookie = res.headers.get('set-cookie');
-  return redirect('/chat', {
+  return redirect(redirectTo, {
     headers: setCookie ? { 'Set-Cookie': setCookie } : {},
   });
 }

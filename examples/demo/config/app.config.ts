@@ -48,10 +48,44 @@ export const config: AppConfig = {
         maxTokens: 4096,
         isDefault: true,
         // Enable all native tools (web-scrape, etc.)
-        allowedTools: ['native:*'],
+        allowedTools: ['native:*', 'marketplaceadpros:*'],
       },
     ],
   },
+
+
+  email: {
+    enabled: true,
+    providerConfig: {
+      type: 'ses',
+      region: 'us-west-2',
+    },
+    fromAddress: 'hello@chaaskit.com',
+    fromName: 'ChaasKit',
+  },
+
+
+  mcp: {
+    servers: [
+      {
+        id: 'marketplaceadpros',
+        name: 'MarketplaceAdPros',
+        transport: 'streamable-http',
+        url: 'https://app.marketplaceadpros.com/mcp',
+        enabled: true,
+        authMode: 'team-oauth',
+        userInstructions: 'Ask your team admin to authorize your MarketplaceAdPros account in Team Settings',
+      },
+    ],
+    allowUserServers: true,
+    toolConfirmation: {
+      mode: 'all', // 'none' | 'all' | 'whitelist' | 'blacklist'
+      tools: [], // Tool patterns for whitelist/blacklist modes
+    },
+    toolTimeout: 30000,
+    showToolCalls: true, // Set to false to hide tool execution cards in chat
+  },
+
 
   payments: {
     enabled: false,

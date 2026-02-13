@@ -9,6 +9,7 @@ Unlike MCP tools (which connect to external servers), native tools:
 - Have no external dependencies
 - Are opt-in per agent (must be explicitly enabled)
 - Use the `native:` prefix in configuration
+- Can declaratively require per-user or per-team credentials (see [Credential-Backed Tools](#credential-backed-tools))
 
 ## Available Native Tools
 
@@ -172,6 +173,127 @@ import './my-tools/weather.js'; // Registers the tool on import
 const app = await createApp();
 ```
 
+## Credential-Backed Tools
+
+Native tools can declaratively require per-user or per-team credentials. The platform handles encrypted storage, settings UI, and automatic credential resolution — reusing the same infrastructure as MCP server credentials.
+
+This is useful when building tools that call third-party APIs (Jira, Slack, GitHub, etc.) where each user or team needs their own credentials.
+
+### How It Works
+
+1. Register a **credential config** with `registerNativeCredential()` — defines what credential is needed
+2. Register **tools** with `credentialId` referencing the config — tools get credentials auto-injected
+3. The credential appears in **User Settings** or **Team Settings** alongside MCP credentials
+4. At execution, the platform looks up, decrypts, and passes the credential via `context.credential`
+5. Tools with missing credentials are **hidden from the LLM** (or return an error, configurable)
+
+### Example: Jira Integration
+
+```typescript
+// extensions/agents/jira.ts
+import { registerNativeCredential, registerNativeTool } from '@chaaskit/server';
+
+// 1. Register the credential requirement (one per integration)
+registerNativeCredential({
+  id: 'jira',
+  name: 'Jira',
+  authMode: 'team-apikey',
+  userInstructions: 'Enter your Jira API token (Atlassian Settings > API tokens)',
+});
+
+// 2. Register tools that reference it
+registerNativeTool({
+  name: 'jira-create-issue',
+  description: 'Create a Jira issue',
+  credentialId: 'jira',  // References the credential config above
+  inputSchema: {
+    type: 'object',
+    properties: {
+      project: { type: 'string', description: 'Project key (e.g., PROJ)' },
+      summary: { type: 'string', description: 'Issue title' },
+    },
+    required: ['project', 'summary'],
+  },
+  async execute(input, context) {
+    // context.credential is auto-populated with decrypted data
+    const { apiKey } = context.credential!;
+    const res = await fetch('https://yoursite.atlassian.net/rest/api/3/issue', {
+      headers: {
+        Authorization: `Basic ${Buffer.from(`email@example.com:${apiKey}`).toString('base64')}`,
+        'Content-Type': 'application/json',
+      },
+      method: 'POST',
+      body: JSON.stringify({
+        fields: {
+          project: { key: input.project as string },
+          summary: input.summary as string,
+          issuetype: { name: 'Task' },
+        },
+      }),
+    });
+    return { content: [{ type: 'text', text: await res.text() }] };
+  },
+});
+
+// Multiple tools can share the same credential
+registerNativeTool({
+  name: 'jira-search',
+  description: 'Search Jira issues with JQL',
+  credentialId: 'jira',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      jql: { type: 'string', description: 'JQL query string' },
+    },
+    required: ['jql'],
+  },
+  async execute(input, context) {
+    const { apiKey } = context.credential!;
+    // ... search implementation
+    return { content: [{ type: 'text', text: 'results...' }] };
+  },
+});
+```
+
+### NativeCredentialConfig
+
+```typescript
+interface NativeCredentialConfig {
+  /** Unique ID (used as serverId in MCPCredential table) */
+  id: string;
+  /** Display name in settings UI (e.g., "Jira", "Slack") */
+  name: string;
+  /** Authentication mode */
+  authMode: MCPAuthMode;  // 'user-apikey' | 'user-oauth' | 'team-apikey' | 'team-oauth'
+  /** Help text shown to users in settings */
+  userInstructions?: string;
+  /** OAuth configuration (required for oauth auth modes) */
+  oauth?: MCPOAuthConfig;
+  /** When credential is missing: 'hide' removes tool from LLM, 'error' returns error on use. Default: 'hide' */
+  whenMissing?: 'hide' | 'error';
+}
+```
+
+### Authentication Modes
+
+All four MCP auth modes are supported:
+
+| Mode | Scope | Configured by | Shows in |
+|------|-------|---------------|----------|
+| `user-apikey` | Per user | Each user | User Settings |
+| `user-oauth` | Per user | Each user | User Settings |
+| `team-apikey` | Per team | Team admin | Team Settings |
+| `team-oauth` | Per team | Team admin | Team Settings |
+
+### Missing Credential Behavior
+
+The `whenMissing` option controls what happens when a tool's credential is not configured:
+
+- **`'hide'`** (default): Tool is excluded from the LLM's tool list. The AI won't know the tool exists.
+- **`'error'`**: Tool is included but returns a helpful error when called, e.g., *"Jira is not connected. Please configure it in Team Settings."*
+
+For full details, see [MCP Integration > Native Tool Credentials](./mcp.md#native-tool-credentials).
+
 ## Type Definitions
 
 ### NativeTool
@@ -189,6 +311,9 @@ interface NativeTool {
 
   /** Optional metadata for UI templates and other extensions */
   _meta?: NativeToolMeta;
+
+  /** References a NativeCredentialConfig.id - credential will be auto-resolved and passed via context */
+  credentialId?: string;
 
   /** Execute the tool with the given input */
   execute: (input: Record<string, unknown>, context: ToolContext) => Promise<ToolResult>;
@@ -221,6 +346,15 @@ interface ToolContext {
   userId?: string;    // Current user's ID (if authenticated)
   threadId?: string;  // Current thread ID
   agentId?: string;   // Current agent ID
+  teamId?: string;    // Current team ID (if team thread)
+  credential?: ResolvedCredential;  // Auto-populated if tool has credentialId
+}
+
+interface ResolvedCredential {
+  apiKey?: string;       // For apikey auth modes
+  accessToken?: string;  // For oauth auth modes
+  refreshToken?: string;
+  tokenType?: string;
 }
 ```
 

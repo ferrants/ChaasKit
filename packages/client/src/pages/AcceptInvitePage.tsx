@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useParams, useNavigate, Link } from 'react-router';
+import { useParams, useNavigate } from 'react-router';
 import { useAuth } from '../contexts/AuthContext';
 import { useTeam } from '../contexts/TeamContext';
 import { useAppPath } from '../hooks/useAppPath';
@@ -58,27 +58,29 @@ export default function AcceptInvitePage() {
     }
   };
 
+  const invitePath = `/invite/${token}`;
+
   if (authLoading || isLoading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[var(--color-background)]">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[var(--color-primary)]" />
+      <div className="flex min-h-screen items-center justify-center bg-background">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[var(--color-background)] p-4">
+      <div className="flex min-h-screen items-center justify-center bg-background p-4">
         <div className="w-full max-w-md text-center">
-          <div className="mb-4 rounded-lg bg-[var(--color-error)]/10 p-4 text-[var(--color-error)]">
+          <div className="mb-4 rounded-lg bg-error/10 p-4 text-error">
             {error}
           </div>
-          <Link
-            to="/"
-            className="text-[var(--color-primary)] hover:underline"
+          <a
+            href="/"
+            className="text-primary hover:underline"
           >
             Go to homepage
-          </Link>
+          </a>
         </div>
       </div>
     );
@@ -86,40 +88,40 @@ export default function AcceptInvitePage() {
 
   if (!user) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[var(--color-background)] p-4">
+      <div className="flex min-h-screen items-center justify-center bg-background p-4">
         <div className="w-full max-w-md text-center">
-          <h1 className="text-2xl font-bold text-[var(--color-text-primary)] mb-4">
+          <h1 className="text-2xl font-bold text-text-primary mb-4">
             Team Invitation
           </h1>
           {invite && (
-            <div className="mb-6 rounded-lg border border-[var(--color-border)] bg-[var(--color-background-secondary)] p-6">
-              <p className="text-[var(--color-text-primary)] mb-2">
+            <div className="mb-6 rounded-lg border border-border bg-background-secondary p-6">
+              <p className="text-text-primary mb-2">
                 You've been invited to join
               </p>
-              <p className="text-2xl font-bold text-[var(--color-text-primary)] mb-4">
+              <p className="text-2xl font-bold text-text-primary mb-4">
                 {invite.teamName}
               </p>
-              <p className="text-sm text-[var(--color-text-muted)]">
+              <p className="text-sm text-text-muted">
                 as {invite.role}
               </p>
             </div>
           )}
-          <p className="text-[var(--color-text-secondary)] mb-6">
+          <p className="text-text-secondary mb-6">
             Please sign in or create an account to accept this invitation.
           </p>
           <div className="flex gap-4 justify-center">
-            <Link
-              to="/login"
-              className="rounded-lg bg-[var(--color-primary)] px-6 py-2 font-medium text-white hover:bg-[var(--color-primary-hover)]"
+            <a
+              href={`/login?redirect=${encodeURIComponent(invitePath)}`}
+              className="rounded-lg bg-primary px-6 py-2 font-medium text-white hover:bg-primary-hover"
             >
               Sign In
-            </Link>
-            <Link
-              to="/register"
-              className="rounded-lg border border-[var(--color-border)] px-6 py-2 font-medium text-[var(--color-text-primary)] hover:bg-[var(--color-background-secondary)]"
+            </a>
+            <a
+              href={`/register?invite=${token}&redirect=${encodeURIComponent(invitePath)}`}
+              className="rounded-lg border border-border px-6 py-2 font-medium text-text-primary hover:bg-background-secondary"
             >
               Create Account
-            </Link>
+            </a>
           </div>
         </div>
       </div>
@@ -127,27 +129,27 @@ export default function AcceptInvitePage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-[var(--color-background)] p-4">
+    <div className="flex min-h-screen items-center justify-center bg-background p-4">
       <div className="w-full max-w-md text-center">
-        <h1 className="text-2xl font-bold text-[var(--color-text-primary)] mb-4">
+        <h1 className="text-2xl font-bold text-text-primary mb-4">
           Team Invitation
         </h1>
         {invite && (
           <>
-            <div className="mb-6 rounded-lg border border-[var(--color-border)] bg-[var(--color-background-secondary)] p-6">
-              <p className="text-[var(--color-text-primary)] mb-2">
+            <div className="mb-6 rounded-lg border border-border bg-background-secondary p-6">
+              <p className="text-text-primary mb-2">
                 You've been invited to join
               </p>
-              <p className="text-2xl font-bold text-[var(--color-text-primary)] mb-4">
+              <p className="text-2xl font-bold text-text-primary mb-4">
                 {invite.teamName}
               </p>
-              <p className="text-sm text-[var(--color-text-muted)]">
+              <p className="text-sm text-text-muted">
                 as {invite.role}
               </p>
             </div>
 
             {user.email.toLowerCase() !== invite.email.toLowerCase() && (
-              <div className="mb-6 rounded-lg bg-[var(--color-warning)]/10 p-4 text-sm text-[var(--color-warning)]">
+              <div className="mb-6 rounded-lg bg-warning/10 p-4 text-sm text-warning">
                 This invite was sent to {invite.email}. You are signed in as {user.email}.
               </div>
             )}
@@ -156,16 +158,16 @@ export default function AcceptInvitePage() {
               <button
                 onClick={handleAccept}
                 disabled={isAccepting}
-                className="rounded-lg bg-[var(--color-primary)] px-6 py-2 font-medium text-white hover:bg-[var(--color-primary-hover)] disabled:opacity-50"
+                className="rounded-lg bg-primary px-6 py-2 font-medium text-white hover:bg-primary-hover disabled:opacity-50"
               >
                 {isAccepting ? 'Accepting...' : 'Accept Invitation'}
               </button>
-              <Link
-                to="/"
-                className="rounded-lg border border-[var(--color-border)] px-6 py-2 font-medium text-[var(--color-text-primary)] hover:bg-[var(--color-background-secondary)]"
+              <a
+                href="/"
+                className="rounded-lg border border-border px-6 py-2 font-medium text-text-primary hover:bg-background-secondary"
               >
                 Decline
-              </Link>
+              </a>
             </div>
           </>
         )}

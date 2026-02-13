@@ -32,10 +32,15 @@ export { loadExtensions } from './extensions/loader.js';
 // Native tools
 export {
   registerNativeTool,
+  registerNativeCredential,
+  getNativeCredentialConfigs,
+  getNativeCredentialConfig,
   getAllNativeTools,
   getNativeTool,
   type NativeTool,
   type NativeToolForAgent,
+  type NativeCredentialConfig,
+  type ResolvedCredential,
   type ToolContext,
   type ToolResult,
 } from './tools/index.js';

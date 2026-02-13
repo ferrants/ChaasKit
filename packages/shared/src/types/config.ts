@@ -323,8 +323,9 @@ export interface RateLimitConfig {
  * Main application configuration.
  *
  * SYNC NOTE: When adding new config sections here, also update:
- * - packages/core-server/src/api/config.ts (buildClientConfig function)
- *   to expose client-safe fields to the frontend
+ * - packages/server/src/api/config.ts (buildClientConfig function)
+ * - packages/client/src/ssr-utils.tsx (ConfigScript safeConfig)
+ *   Both must expose client-safe fields to the frontend.
  */
 export interface AppConfig {
   app: AppInfo;

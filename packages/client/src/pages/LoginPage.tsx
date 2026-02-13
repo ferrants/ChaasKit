@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router';
+import { Link, useNavigate, useSearchParams } from 'react-router';
 import { useAuth } from '../contexts/AuthContext';
 import { useConfig } from '../contexts/ConfigContext';
 import { useTheme } from '../contexts/ThemeContext';
@@ -11,6 +11,9 @@ export default function LoginPage() {
   const { login, sendMagicLink } = useAuth();
   const config = useConfig();
   const { theme } = useTheme();
+  const [searchParams] = useSearchParams();
+
+  const redirectPath = searchParams.get('redirect');
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -32,6 +35,8 @@ export default function LoginPage() {
       const { requiresVerification } = await login(email, password);
       if (requiresVerification) {
         navigate('/verify-email');
+      } else if (redirectPath && redirectPath.startsWith('/')) {
+        navigate(redirectPath);
       } else {
         navigate(appPath('/'));
       }
@@ -222,7 +227,7 @@ export default function LoginPage() {
         {/* Register link */}
         <p className="mt-6 text-center text-sm text-text-secondary">
           Don't have an account?{' '}
-          <Link to="/register" className="text-primary hover:underline">
+          <Link to={redirectPath ? `/register?redirect=${encodeURIComponent(redirectPath)}` : '/register'} className="text-primary hover:underline">
             Sign up
           </Link>
         </p>

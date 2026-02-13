@@ -186,10 +186,15 @@ export function filterToolsForAgent(
 /**
  * Get native tools available for an agent based on allowedTools config.
  * Native tools are opt-in: only available if explicitly listed.
+ * When context is provided, tools with credential requirements are filtered
+ * based on credential availability.
  */
-export function getNativeToolsForAgentFiltered(agentId: string | null | undefined): NativeToolForAgent[] {
+export async function getNativeToolsForAgentFiltered(
+  agentId: string | null | undefined,
+  context?: { userId?: string; teamId?: string | null }
+): Promise<NativeToolForAgent[]> {
   const agent = getAgentById(agentId);
-  const allNativeTools = getNativeToolsForAgent();
+  const allNativeTools = await getNativeToolsForAgent(context);
 
   // No allowedTools = no native tools (opt-in model)
   if (!agent?.allowedTools || agent.allowedTools.length === 0) {

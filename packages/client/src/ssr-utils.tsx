@@ -60,7 +60,11 @@ interface ConfigScriptProps {
  * ```
  */
 export function ConfigScript({ config }: ConfigScriptProps) {
-  // Only include the UI-related config to avoid exposing sensitive data
+  // Only include the UI-related config to avoid exposing sensitive data.
+  //
+  // SYNC NOTE: Keep in sync with buildClientConfig() in:
+  //   packages/server/src/api/config.ts
+  // Both must expose the same client-safe fields.
   const safeConfig = {
     app: config.app,
     ui: config.ui,
@@ -77,6 +81,7 @@ export function ConfigScript({ config }: ConfigScriptProps) {
       provider: config.payments?.provider,
     },
     legal: config.legal,
+    userSettings: config.userSettings,
     sharing: config.sharing,
     teams: config.teams,
     projects: config.projects,
@@ -89,6 +94,26 @@ export function ConfigScript({ config }: ConfigScriptProps) {
     api: {
       enabled: config.api?.enabled,
     },
+    email: config.email ? {
+      enabled: config.email.enabled,
+    } : undefined,
+    slack: config.slack ? {
+      enabled: config.slack.enabled,
+    } : undefined,
+    mcp: config.mcp ? {
+      servers: config.mcp.servers?.map(server => ({
+        id: server.id,
+        name: server.name,
+        transport: server.transport,
+        enabled: server.enabled,
+        authMode: server.authMode,
+        userInstructions: server.userInstructions,
+      })),
+      allowUserServers: config.mcp.allowUserServers,
+      toolConfirmation: config.mcp.toolConfirmation,
+      toolTimeout: config.mcp.toolTimeout,
+      showToolCalls: config.mcp.showToolCalls,
+    } : undefined,
     promptTemplates: config.promptTemplates ? {
       enabled: config.promptTemplates.enabled,
       allowUserTemplates: config.promptTemplates.allowUserTemplates,

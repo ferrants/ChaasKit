@@ -1,4 +1,4 @@
-import type { MCPContentItem } from '@chaaskit/shared';
+import type { MCPContentItem, MCPAuthMode, MCPOAuthConfig } from '@chaaskit/shared';
 
 /**
  * JSON Schema for tool input validation
@@ -14,6 +14,30 @@ export interface JSONSchema {
   required?: string[];
 }
 
+/** Credential configuration for native tool integrations */
+export interface NativeCredentialConfig {
+  /** Unique ID used as serverId in MCPCredential table */
+  id: string;
+  /** Display name in settings UI (e.g., "Jira", "Slack") */
+  name: string;
+  /** Authentication mode */
+  authMode: MCPAuthMode;
+  /** Help text shown to users in settings */
+  userInstructions?: string;
+  /** OAuth configuration (required for oauth auth modes) */
+  oauth?: MCPOAuthConfig;
+  /** When credential is missing: 'hide' removes tool from LLM, 'error' shows tool but returns error on use. Default: 'hide' */
+  whenMissing?: 'hide' | 'error';
+}
+
+/** Resolved credential data passed to tool execute() */
+export interface ResolvedCredential {
+  apiKey?: string;
+  accessToken?: string;
+  refreshToken?: string;
+  tokenType?: string;
+}
+
 /**
  * Context passed to native tool execution
  */
@@ -21,6 +45,8 @@ export interface ToolContext {
   userId?: string;
   threadId?: string;
   agentId?: string;
+  teamId?: string;
+  credential?: ResolvedCredential;
 }
 
 /**
@@ -59,6 +85,9 @@ export interface NativeTool {
 
   /** Optional metadata for UI templates and other extensions */
   _meta?: NativeToolMeta;
+
+  /** References a NativeCredentialConfig.id - credential will be auto-resolved and passed via context */
+  credentialId?: string;
 
   /** Execute the tool with the given input */
   execute: (input: Record<string, unknown>, context: ToolContext) => Promise<ToolResult>;

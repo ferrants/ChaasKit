@@ -10,7 +10,9 @@ export const configRouter = Router();
  *
  * SYNC NOTE: When adding new sections to AppConfig in:
  *   packages/shared/src/types/config.ts
- * Remember to add them here (filtering out any sensitive fields).
+ * Remember to add them here AND in:
+ *   packages/client/src/ssr-utils.tsx (ConfigScript safeConfig)
+ * Both places filter the full config to client-safe fields.
  *
  * Sections intentionally excluded:
  * - agent: Contains API keys and provider details

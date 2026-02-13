@@ -125,6 +125,7 @@ export interface MCPCredentialStatus {
   hasCredential: boolean;
   credentialType?: 'api_key' | 'oauth';
   userInstructions?: string;
+  source?: 'mcp' | 'native';
 }
 
 // =============================================================================

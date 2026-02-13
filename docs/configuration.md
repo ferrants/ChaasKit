@@ -1108,6 +1108,14 @@ Transactional email support for email verification, team invitations, and notifi
 
 ### Configuration
 
+The SES provider requires the AWS SDK as a peer dependency. Install it first:
+
+```bash
+pnpm --filter @chaaskit/server add @aws-sdk/client-ses
+```
+
+Then configure the email provider in `config/app.config.ts`:
+
 ```typescript
 email: {
   enabled: true,

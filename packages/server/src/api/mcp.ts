@@ -13,6 +13,7 @@ import {
   generatePKCE,
 } from '../services/encryption.js';
 import { discoverOAuthConfig } from '../services/oauth-discovery.js';
+import { getNativeCredentialConfigs, getNativeCredentialConfig } from '../tools/index.js';
 
 export const mcpRouter = Router();
 
@@ -143,11 +144,6 @@ mcpRouter.get('/credentials', requireAuth, async (req, res, next) => {
     const config = getConfig();
     const userId = req.user!.id;
 
-    if (!config.mcp) {
-      res.json({ credentials: [] });
-      return;
-    }
-
     // Get user's existing credentials
     const userCredentials = await db.mCPCredential.findMany({
       where: { userId },
@@ -158,20 +154,39 @@ mcpRouter.get('/credentials', requireAuth, async (req, res, next) => {
       userCredentials.map((c) => [c.serverId, c.credentialType])
     );
 
-    // Build status for servers that require user credentials
-    const credentials: MCPCredentialStatus[] = config.mcp.servers
-      .filter((server) => {
-        const authMode = server.authMode || 'none';
-        return authMode === 'user-apikey' || authMode === 'user-oauth';
-      })
-      .map((server) => ({
-        serverId: server.id,
-        serverName: server.name,
-        authMode: server.authMode || 'none',
-        hasCredential: credentialMap.has(server.id),
-        credentialType: credentialMap.get(server.id) as 'api_key' | 'oauth' | undefined,
-        userInstructions: server.userInstructions,
-      }));
+    // Build status for MCP servers that require user credentials
+    const credentials: MCPCredentialStatus[] = config.mcp
+      ? config.mcp.servers
+          .filter((server) => {
+            const authMode = server.authMode || 'none';
+            return authMode === 'user-apikey' || authMode === 'user-oauth';
+          })
+          .map((server) => ({
+            serverId: server.id,
+            serverName: server.name,
+            authMode: server.authMode || 'none',
+            hasCredential: credentialMap.has(server.id),
+            credentialType: credentialMap.get(server.id) as 'api_key' | 'oauth' | undefined,
+            userInstructions: server.userInstructions,
+            source: 'mcp' as const,
+          }))
+      : [];
+
+    // Include native credential configs that require user credentials
+    const nativeConfigs = getNativeCredentialConfigs()
+      .filter(c => c.authMode === 'user-apikey' || c.authMode === 'user-oauth');
+
+    for (const nativeConfig of nativeConfigs) {
+      credentials.push({
+        serverId: nativeConfig.id,
+        serverName: nativeConfig.name,
+        authMode: nativeConfig.authMode,
+        hasCredential: credentialMap.has(nativeConfig.id),
+        credentialType: credentialMap.get(nativeConfig.id) as 'api_key' | 'oauth' | undefined,
+        userInstructions: nativeConfig.userInstructions,
+        source: 'native',
+      });
+    }
 
     console.log(`[MCP] Returning ${credentials.length} credential statuses for user ${userId}`);
     res.json({ credentials });
@@ -192,17 +207,25 @@ mcpRouter.post('/credentials/:serverId/apikey', requireAuth, async (req, res, ne
       throw new AppError(HTTP_STATUS.BAD_REQUEST, 'API key is required');
     }
 
-    if (!config.mcp) {
-      throw new AppError(HTTP_STATUS.BAD_REQUEST, 'MCP is not configured');
-    }
+    // Check native credential configs first, then MCP server configs
+    const nativeCredConfig = getNativeCredentialConfig(serverId);
+    if (nativeCredConfig) {
+      if (nativeCredConfig.authMode !== 'user-apikey') {
+        throw new AppError(HTTP_STATUS.BAD_REQUEST, 'This integration does not accept user API keys');
+      }
+    } else {
+      if (!config.mcp) {
+        throw new AppError(HTTP_STATUS.BAD_REQUEST, 'MCP is not configured');
+      }
 
-    const serverConfig = config.mcp.servers.find((s) => s.id === serverId);
-    if (!serverConfig) {
-      throw new AppError(HTTP_STATUS.NOT_FOUND, 'Server not found');
-    }
+      const serverConfig = config.mcp.servers.find((s) => s.id === serverId);
+      if (!serverConfig) {
+        throw new AppError(HTTP_STATUS.NOT_FOUND, 'Server not found');
+      }
 
-    if (serverConfig.authMode !== 'user-apikey') {
-      throw new AppError(HTTP_STATUS.BAD_REQUEST, 'Server does not accept user API keys');
+      if (serverConfig.authMode !== 'user-apikey') {
+        throw new AppError(HTTP_STATUS.BAD_REQUEST, 'Server does not accept user API keys');
+      }
     }
 
     // Encrypt and store the credential
@@ -227,8 +250,10 @@ mcpRouter.post('/credentials/:serverId/apikey', requireAuth, async (req, res, ne
       },
     });
 
-    // Disconnect existing user client so it reconnects with new credentials
-    await mcpManager.disconnectUser(userId, serverId);
+    // Disconnect existing user client so it reconnects with new credentials (only for MCP servers)
+    if (!nativeCredConfig) {
+      await mcpManager.disconnectUser(userId, serverId);
+    }
 
     res.json({ success: true });
   } catch (error) {
@@ -236,7 +261,7 @@ mcpRouter.post('/credentials/:serverId/apikey', requireAuth, async (req, res, ne
   }
 });
 
-// Remove credential for a server
+// Remove credential for a server (MCP or native)
 mcpRouter.delete('/credentials/:serverId', requireAuth, async (req, res, next) => {
   try {
     const { serverId } = req.params;
@@ -246,8 +271,11 @@ mcpRouter.delete('/credentials/:serverId', requireAuth, async (req, res, next) =
       where: { userId, serverId },
     });
 
-    // Disconnect user client
-    await mcpManager.disconnectUser(userId, serverId);
+    // Disconnect user client (only for MCP servers, not native credentials)
+    const nativeCredConfig = getNativeCredentialConfig(serverId);
+    if (!nativeCredConfig) {
+      await mcpManager.disconnectUser(userId, serverId);
+    }
 
     res.json({ success: true });
   } catch (error) {
@@ -259,32 +287,56 @@ mcpRouter.delete('/credentials/:serverId', requireAuth, async (req, res, next) =
 // OAuth Flow Endpoints
 // ============================================================
 
-// Start OAuth flow - returns authorization URL
+// Start OAuth flow - returns authorization URL (supports both MCP servers and native credentials)
 mcpRouter.get('/oauth/:serverId/authorize', requireAuth, async (req, res, next) => {
   try {
     const config = getConfig();
     const { serverId } = req.params;
     const userId = req.user!.id;
 
-    if (!config.mcp) {
-      throw new AppError(HTTP_STATUS.BAD_REQUEST, 'MCP is not configured');
+    // Check native credential configs first
+    const nativeCredConfig = getNativeCredentialConfig(serverId);
+    let oauthConfig;
+
+    if (nativeCredConfig) {
+      if (nativeCredConfig.authMode !== 'user-oauth') {
+        throw new AppError(HTTP_STATUS.BAD_REQUEST, 'This integration does not support OAuth');
+      }
+      if (!nativeCredConfig.oauth) {
+        throw new AppError(HTTP_STATUS.BAD_REQUEST, 'OAuth configuration missing for this integration');
+      }
+
+      // Build a synthetic server config for discoverOAuthConfig
+      const syntheticConfig = {
+        id: nativeCredConfig.id,
+        name: nativeCredConfig.name,
+        transport: 'streamable-http' as const,
+        enabled: true,
+        authMode: nativeCredConfig.authMode,
+        oauth: nativeCredConfig.oauth,
+      };
+      oauthConfig = await discoverOAuthConfig(syntheticConfig);
+    } else {
+      if (!config.mcp) {
+        throw new AppError(HTTP_STATUS.BAD_REQUEST, 'MCP is not configured');
+      }
+
+      const serverConfig = config.mcp.servers.find((s) => s.id === serverId);
+      if (!serverConfig) {
+        throw new AppError(HTTP_STATUS.NOT_FOUND, 'Server not found');
+      }
+
+      if (serverConfig.authMode !== 'user-oauth') {
+        throw new AppError(HTTP_STATUS.BAD_REQUEST, 'Server does not support OAuth');
+      }
+
+      oauthConfig = await discoverOAuthConfig(serverConfig);
     }
 
-    const serverConfig = config.mcp.servers.find((s) => s.id === serverId);
-    if (!serverConfig) {
-      throw new AppError(HTTP_STATUS.NOT_FOUND, 'Server not found');
-    }
-
-    if (serverConfig.authMode !== 'user-oauth') {
-      throw new AppError(HTTP_STATUS.BAD_REQUEST, 'Server does not support OAuth');
-    }
-
-    // Discover OAuth configuration (endpoints + client registration)
-    const oauthConfig = await discoverOAuthConfig(serverConfig);
     if (!oauthConfig) {
       throw new AppError(
         HTTP_STATUS.INTERNAL_SERVER_ERROR,
-        'Failed to discover OAuth configuration for this server'
+        'Failed to discover OAuth configuration'
       );
     }
 
@@ -326,9 +378,12 @@ mcpRouter.get('/oauth/:serverId/authorize', requireAuth, async (req, res, next) 
     authUrl.searchParams.set('code_challenge', codeChallenge);
     authUrl.searchParams.set('code_challenge_method', 'S256');
 
-    // RFC 8707: Resource indicator for audience binding (required by MCP spec)
-    if (serverConfig.url) {
-      authUrl.searchParams.set('resource', serverConfig.url);
+    // RFC 8707: Resource indicator for audience binding (MCP servers only)
+    if (!nativeCredConfig) {
+      const mcpServerConfig = config.mcp?.servers.find((s) => s.id === serverId);
+      if (mcpServerConfig?.url) {
+        authUrl.searchParams.set('resource', mcpServerConfig.url);
+      }
     }
 
     if (oauthConfig.scopes && oauthConfig.scopes.length > 0) {
@@ -348,7 +403,8 @@ mcpRouter.get('/oauth/callback', async (req, res, next) => {
     const { code, state, error: oauthError, error_description } = req.query;
 
     const appUrl = process.env.APP_URL || 'http://localhost:5173';
-    const settingsUrl = `${appUrl}/settings`;
+    const basePath = config.app?.basePath || '';
+    const settingsUrl = `${appUrl}${basePath}/settings`;
 
     if (oauthError) {
       console.error(`[MCP OAuth] Error: ${oauthError} - ${error_description}`);
@@ -391,13 +447,26 @@ mcpRouter.get('/oauth/callback', async (req, res, next) => {
       oauthState = state.slice(stateIndex + 1);
     }
 
-    if (!config.mcp) {
-      res.redirect(`${settingsUrl}?error=mcp_not_configured`);
+    // Look up config from MCP servers or native credential configs
+    const nativeCredConfig = getNativeCredentialConfig(serverId);
+    const serverConfig = config.mcp?.servers.find((s) => s.id === serverId);
+
+    if (!nativeCredConfig && !serverConfig) {
+      res.redirect(`${settingsUrl}?error=server_not_found`);
       return;
     }
 
-    const serverConfig = config.mcp.servers.find((s) => s.id === serverId);
-    if (!serverConfig) {
+    // Build a synthetic MCP server config for native credentials (for discoverOAuthConfig)
+    const effectiveServerConfig = serverConfig || (nativeCredConfig ? {
+      id: nativeCredConfig.id,
+      name: nativeCredConfig.name,
+      transport: 'streamable-http' as const,
+      enabled: true,
+      authMode: nativeCredConfig.authMode,
+      oauth: nativeCredConfig.oauth,
+    } : null);
+
+    if (!effectiveServerConfig) {
       res.redirect(`${settingsUrl}?error=server_not_found`);
       return;
     }
@@ -417,7 +486,7 @@ mcpRouter.get('/oauth/callback', async (req, res, next) => {
     }
 
     // Discover OAuth configuration
-    const oauthConfig = await discoverOAuthConfig(serverConfig);
+    const oauthConfig = await discoverOAuthConfig(effectiveServerConfig);
     if (!oauthConfig) {
       res.redirect(`${settingsUrl}?error=oauth_discovery_failed`);
       return;
@@ -431,7 +500,7 @@ mcpRouter.get('/oauth/callback', async (req, res, next) => {
     const redirectUri = `${apiUrl}/api/mcp/oauth/callback`;
 
     // Exchange code for tokens
-    // RFC 8707: Include resource parameter for audience binding (required by MCP spec)
+    // RFC 8707: Include resource parameter for audience binding (MCP servers only)
     const tokenParams: Record<string, string> = {
       grant_type: 'authorization_code',
       code,
@@ -444,8 +513,8 @@ mcpRouter.get('/oauth/callback', async (req, res, next) => {
       tokenParams.client_secret = oauthConfig.clientSecret;
     }
 
-    // Include resource parameter for token audience binding
-    if (serverConfig.url) {
+    // Include resource parameter for token audience binding (MCP servers only)
+    if (serverConfig?.url) {
       tokenParams.resource = serverConfig.url;
     }
 
@@ -495,18 +564,25 @@ mcpRouter.get('/oauth/callback', async (req, res, next) => {
       },
     });
 
-    // Disconnect existing client so it reconnects with new credentials
+    // Disconnect existing client so it reconnects with new credentials (MCP servers only)
+    if (!nativeCredConfig) {
+      if (isTeamOAuth && teamId) {
+        await mcpManager.disconnectTeam(teamId, serverId);
+      } else {
+        await mcpManager.disconnectUser(credential.userId, serverId);
+      }
+    }
+
     if (isTeamOAuth && teamId) {
-      await mcpManager.disconnectTeam(teamId, serverId);
-      res.redirect(`${appUrl}/team/${teamId}/settings?success=oauth_connected&server=${serverId}`);
+      res.redirect(`${appUrl}${basePath}/team/${teamId}/settings?success=oauth_connected&server=${serverId}`);
     } else {
-      await mcpManager.disconnectUser(credential.userId, serverId);
-      res.redirect(`${appUrl}/?openSettings=true&success=oauth_connected&server=${serverId}`);
+      res.redirect(`${appUrl}${basePath}/?openSettings=true&success=oauth_connected&server=${serverId}`);
     }
   } catch (error) {
     console.error('[MCP OAuth] Callback error:', error);
     const appUrl = process.env.APP_URL || 'http://localhost:5173';
-    res.redirect(`${appUrl}/?openSettings=true&error=oauth_callback_error`);
+    const errBasePath = getConfig().app?.basePath || '';
+    res.redirect(`${appUrl}${errBasePath}/?openSettings=true&error=oauth_callback_error`);
   }
 });
 
@@ -520,11 +596,6 @@ mcpRouter.get('/team/:teamId/credentials', requireAuth, requireTeamRole('admin')
     const config = getConfig();
     const { teamId } = req.params;
 
-    if (!config.mcp) {
-      res.json({ credentials: [] });
-      return;
-    }
-
     // Get team's existing credentials
     const teamCredentials = await db.mCPCredential.findMany({
       where: { teamId },
@@ -535,20 +606,39 @@ mcpRouter.get('/team/:teamId/credentials', requireAuth, requireTeamRole('admin')
       teamCredentials.map((c) => [c.serverId, c.credentialType])
     );
 
-    // Build status for servers that require team credentials
-    const credentials: MCPCredentialStatus[] = config.mcp.servers
-      .filter((server) => {
-        const authMode = server.authMode || 'none';
-        return authMode === 'team-apikey' || authMode === 'team-oauth';
-      })
-      .map((server) => ({
-        serverId: server.id,
-        serverName: server.name,
-        authMode: server.authMode || 'none',
-        hasCredential: credentialMap.has(server.id),
-        credentialType: credentialMap.get(server.id) as 'api_key' | 'oauth' | undefined,
-        userInstructions: server.userInstructions,
-      }));
+    // Build status for MCP servers that require team credentials
+    const credentials: MCPCredentialStatus[] = config.mcp
+      ? config.mcp.servers
+          .filter((server) => {
+            const authMode = server.authMode || 'none';
+            return authMode === 'team-apikey' || authMode === 'team-oauth';
+          })
+          .map((server) => ({
+            serverId: server.id,
+            serverName: server.name,
+            authMode: server.authMode || 'none',
+            hasCredential: credentialMap.has(server.id),
+            credentialType: credentialMap.get(server.id) as 'api_key' | 'oauth' | undefined,
+            userInstructions: server.userInstructions,
+            source: 'mcp' as const,
+          }))
+      : [];
+
+    // Include native credential configs that require team credentials
+    const nativeConfigs = getNativeCredentialConfigs()
+      .filter(c => c.authMode === 'team-apikey' || c.authMode === 'team-oauth');
+
+    for (const nativeConfig of nativeConfigs) {
+      credentials.push({
+        serverId: nativeConfig.id,
+        serverName: nativeConfig.name,
+        authMode: nativeConfig.authMode,
+        hasCredential: credentialMap.has(nativeConfig.id),
+        credentialType: credentialMap.get(nativeConfig.id) as 'api_key' | 'oauth' | undefined,
+        userInstructions: nativeConfig.userInstructions,
+        source: 'native',
+      });
+    }
 
     res.json({ credentials });
   } catch (error) {
@@ -568,17 +658,25 @@ mcpRouter.post('/team/:teamId/credentials/:serverId/apikey', requireAuth, requir
       throw new AppError(HTTP_STATUS.BAD_REQUEST, 'API key is required');
     }
 
-    if (!config.mcp) {
-      throw new AppError(HTTP_STATUS.BAD_REQUEST, 'MCP is not configured');
-    }
+    // Check native credential configs first, then MCP server configs
+    const nativeCredConfig = getNativeCredentialConfig(serverId);
+    if (nativeCredConfig) {
+      if (nativeCredConfig.authMode !== 'team-apikey') {
+        throw new AppError(HTTP_STATUS.BAD_REQUEST, 'This integration does not accept team API keys');
+      }
+    } else {
+      if (!config.mcp) {
+        throw new AppError(HTTP_STATUS.BAD_REQUEST, 'MCP is not configured');
+      }
 
-    const serverConfig = config.mcp.servers.find((s) => s.id === serverId);
-    if (!serverConfig) {
-      throw new AppError(HTTP_STATUS.NOT_FOUND, 'Server not found');
-    }
+      const serverConfig = config.mcp.servers.find((s) => s.id === serverId);
+      if (!serverConfig) {
+        throw new AppError(HTTP_STATUS.NOT_FOUND, 'Server not found');
+      }
 
-    if (serverConfig.authMode !== 'team-apikey') {
-      throw new AppError(HTTP_STATUS.BAD_REQUEST, 'Server does not accept team API keys');
+      if (serverConfig.authMode !== 'team-apikey') {
+        throw new AppError(HTTP_STATUS.BAD_REQUEST, 'Server does not accept team API keys');
+      }
     }
 
     // Encrypt and store the credential
@@ -612,8 +710,10 @@ mcpRouter.post('/team/:teamId/credentials/:serverId/apikey', requireAuth, requir
       });
     }
 
-    // Disconnect existing team client so it reconnects with new credentials
-    await mcpManager.disconnectTeam(teamId, serverId);
+    // Disconnect existing team client so it reconnects with new credentials (MCP servers only)
+    if (!nativeCredConfig) {
+      await mcpManager.disconnectTeam(teamId, serverId);
+    }
 
     res.json({ success: true });
   } catch (error) {
@@ -621,7 +721,7 @@ mcpRouter.post('/team/:teamId/credentials/:serverId/apikey', requireAuth, requir
   }
 });
 
-// Remove team credential for a server
+// Remove team credential for a server (MCP or native)
 mcpRouter.delete('/team/:teamId/credentials/:serverId', requireAuth, requireTeamRole('admin'), async (req, res, next) => {
   try {
     const { teamId, serverId } = req.params;
@@ -630,8 +730,11 @@ mcpRouter.delete('/team/:teamId/credentials/:serverId', requireAuth, requireTeam
       where: { teamId, serverId },
     });
 
-    // Disconnect team client
-    await mcpManager.disconnectTeam(teamId, serverId);
+    // Disconnect team client (MCP servers only)
+    const nativeCredConfig = getNativeCredentialConfig(serverId);
+    if (!nativeCredConfig) {
+      await mcpManager.disconnectTeam(teamId, serverId);
+    }
 
     res.json({ success: true });
   } catch (error) {
@@ -639,32 +742,57 @@ mcpRouter.delete('/team/:teamId/credentials/:serverId', requireAuth, requireTeam
   }
 });
 
-// Start OAuth flow for a team server - returns authorization URL
+// Start OAuth flow for a team server - returns authorization URL (supports MCP and native credentials)
 mcpRouter.get('/team/:teamId/oauth/:serverId/authorize', requireAuth, requireTeamRole('admin'), async (req, res, next) => {
   try {
     const config = getConfig();
     const { teamId, serverId } = req.params;
     const userId = req.user!.id;
 
-    if (!config.mcp) {
-      throw new AppError(HTTP_STATUS.BAD_REQUEST, 'MCP is not configured');
+    // Check native credential configs first
+    const nativeCredConfig = getNativeCredentialConfig(serverId);
+    let oauthConfig;
+    let mcpServerUrl: string | undefined;
+
+    if (nativeCredConfig) {
+      if (nativeCredConfig.authMode !== 'team-oauth') {
+        throw new AppError(HTTP_STATUS.BAD_REQUEST, 'This integration does not support team OAuth');
+      }
+      if (!nativeCredConfig.oauth) {
+        throw new AppError(HTTP_STATUS.BAD_REQUEST, 'OAuth configuration missing for this integration');
+      }
+
+      const syntheticConfig = {
+        id: nativeCredConfig.id,
+        name: nativeCredConfig.name,
+        transport: 'streamable-http' as const,
+        enabled: true,
+        authMode: nativeCredConfig.authMode,
+        oauth: nativeCredConfig.oauth,
+      };
+      oauthConfig = await discoverOAuthConfig(syntheticConfig);
+    } else {
+      if (!config.mcp) {
+        throw new AppError(HTTP_STATUS.BAD_REQUEST, 'MCP is not configured');
+      }
+
+      const serverConfig = config.mcp.servers.find((s) => s.id === serverId);
+      if (!serverConfig) {
+        throw new AppError(HTTP_STATUS.NOT_FOUND, 'Server not found');
+      }
+
+      if (serverConfig.authMode !== 'team-oauth') {
+        throw new AppError(HTTP_STATUS.BAD_REQUEST, 'Server does not support team OAuth');
+      }
+
+      mcpServerUrl = serverConfig.url;
+      oauthConfig = await discoverOAuthConfig(serverConfig);
     }
 
-    const serverConfig = config.mcp.servers.find((s) => s.id === serverId);
-    if (!serverConfig) {
-      throw new AppError(HTTP_STATUS.NOT_FOUND, 'Server not found');
-    }
-
-    if (serverConfig.authMode !== 'team-oauth') {
-      throw new AppError(HTTP_STATUS.BAD_REQUEST, 'Server does not support team OAuth');
-    }
-
-    // Discover OAuth configuration (endpoints + client registration)
-    const oauthConfig = await discoverOAuthConfig(serverConfig);
     if (!oauthConfig) {
       throw new AppError(
         HTTP_STATUS.INTERNAL_SERVER_ERROR,
-        'Failed to discover OAuth configuration for this server'
+        'Failed to discover OAuth configuration'
       );
     }
 
@@ -716,9 +844,9 @@ mcpRouter.get('/team/:teamId/oauth/:serverId/authorize', requireAuth, requireTea
     authUrl.searchParams.set('code_challenge', codeChallenge);
     authUrl.searchParams.set('code_challenge_method', 'S256');
 
-    // RFC 8707: Resource indicator for audience binding (required by MCP spec)
-    if (serverConfig.url) {
-      authUrl.searchParams.set('resource', serverConfig.url);
+    // RFC 8707: Resource indicator for audience binding (MCP servers only)
+    if (mcpServerUrl) {
+      authUrl.searchParams.set('resource', mcpServerUrl);
     }
 
     if (oauthConfig.scopes && oauthConfig.scopes.length > 0) {

@@ -332,8 +332,11 @@ chatRouter.post('/', optionalAuth, optionalVerifiedEmail, async (req, res, next)
     console.log(`[Chat] Fetching MCP tools for user ${req.user?.id || 'anonymous'}...`);
     const allMcpTools = await mcpManager.listAllToolsForUser(req.user?.id, mcpServers, thread.teamId);
 
-    // Get native tools available to this agent
-    const nativeTools = getNativeToolsForAgentFiltered(threadAgentId);
+    // Get native tools available to this agent (filters by credential availability)
+    const nativeTools = await getNativeToolsForAgentFiltered(threadAgentId, {
+      userId: req.user?.id,
+      teamId: thread.teamId,
+    });
     console.log(`[Chat] ${nativeTools.length} native tools available to agent`);
 
     // Combine MCP and native tools, then filter based on agent's allowedTools
@@ -508,6 +511,7 @@ chatRouter.post('/', optionalAuth, optionalVerifiedEmail, async (req, res, next)
                   userId: req.user?.id,
                   threadId: thread.id,
                   agentId: threadAgentId || undefined,
+                  teamId: thread.teamId ?? undefined,
                 });
               } else {
                 toolResult = await mcpManager.callToolForUser(
@@ -539,6 +543,7 @@ chatRouter.post('/', optionalAuth, optionalVerifiedEmail, async (req, res, next)
                 userId: req.user?.id,
                 threadId: thread.id,
                 agentId: threadAgentId || undefined,
+                teamId: thread.teamId ?? undefined,
               });
             } else {
               toolResult = await mcpManager.callToolForUser(

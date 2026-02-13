@@ -92,6 +92,11 @@ vi.mock('../../mcp/client.js', () => ({
   },
 }));
 
+vi.mock('../../tools/index.js', () => ({
+  getNativeCredentialConfigs: vi.fn().mockReturnValue([]),
+  getNativeCredentialConfig: vi.fn().mockReturnValue(undefined),
+}));
+
 // Import after mocks are set up
 const { mcpRouter } = await import('../mcp.js');
 import express from 'express';

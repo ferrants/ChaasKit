@@ -216,6 +216,7 @@ Demo config + tools:
 - Update `packages/create-chaaskit/src/templates/`
 - Update `examples/demo/`
 - Update relevant `docs/` files
+- When adding new config sections to `AppConfig`: update both `buildClientConfig()` in `packages/server/src/api/config.ts` AND `ConfigScript` in `packages/client/src/ssr-utils.tsx`
 
 ### Tests (When Adding/Changing Features)
 - Add or update tests for new behavior (Vitest, run via `pnpm test`)

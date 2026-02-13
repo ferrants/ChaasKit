@@ -52,6 +52,7 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.71.0",
+    "@aws-sdk/client-ses": "^3.989.0",
     "@chaaskit/db": "^0.1.7",
     "@chaaskit/shared": "^0.1.7",
     "@modelcontextprotocol/sdk": "^1.0.0",
