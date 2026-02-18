@@ -1,5 +1,11 @@
 # create-chaaskit
 
+## 0.1.9
+
+### Patch Changes
+
+- a178920: Fixed email verifications and syncing to consumers
+
 ## 0.1.8
 
 ### Patch Changes

@@ -1,5 +1,14 @@
 # @chaaskit/server
 
+## 0.1.9
+
+### Patch Changes
+
+- a178920: Fixed email verifications and syncing to consumers
+- Updated dependencies [a178920]
+  - @chaaskit/db@0.1.9
+  - @chaaskit/shared@0.1.9
+
 ## 0.1.8
 
 ### Patch Changes
