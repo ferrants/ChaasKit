@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router';
-import { Send, Paperclip, Loader2, AlertCircle, X, GitBranch, ArrowLeft, Folder } from 'lucide-react';
+import { Send, Paperclip, Loader2, AlertCircle, X, GitBranch, ArrowLeft, Folder, Lock, Users } from 'lucide-react';
 import { useConfig } from '../contexts/ConfigContext';
 import { useProject } from '../contexts/ProjectContext';
+import { useTeam } from '../contexts/TeamContext';
 import { useChatStore } from '../stores/chatStore';
 import { useAppPath } from '../hooks/useAppPath';
 import MessageList from '../components/MessageList';
@@ -15,6 +16,7 @@ export default function ChatPage() {
   const navigate = useNavigate();
   const appPath = useAppPath();
   const config = useConfig();
+  const { currentTeamId } = useTeam();
   const { projects, currentProjectId, projectsEnabled } = useProject();
   const inputRef = useRef<MentionInputHandle>(null);
   const [input, setInput] = useState('');
@@ -30,11 +32,14 @@ export default function ChatPage() {
     completedToolCalls,
     pendingConfirmation,
     availableAgents,
+    newThreadVisibility,
     loadThread,
     sendMessage,
     clearCurrentThread,
     confirmTool,
     loadAgents,
+    setNewThreadVisibility,
+    updateThreadVisibility,
   } = useChatStore();
 
   // Find parent thread info if this is a branch
@@ -150,6 +155,31 @@ export default function ChatPage() {
         </div>
       )}
 
+      {/* Visibility Toggle for team threads */}
+      {currentThread && currentThread.teamId && (
+        <div className="flex items-center gap-2 border-b border-border bg-background-secondary px-4 py-2">
+          <button
+            onClick={() => {
+              const newVis = currentThread.visibility === 'private' ? 'shared' : 'private';
+              updateThreadVisibility(currentThread.id, newVis);
+            }}
+            className="flex items-center gap-1.5 rounded-md px-2 py-1 text-xs text-text-secondary hover:bg-background hover:text-text-primary transition-colors"
+          >
+            {currentThread.visibility === 'private' ? (
+              <>
+                <Lock size={14} />
+                Private to you
+              </>
+            ) : (
+              <>
+                <Users size={14} />
+                Shared with team
+              </>
+            )}
+          </button>
+        </div>
+      )}
+
       {/* Branch Breadcrumb */}
       {currentThread?.parentThreadId && (
         <div className="flex items-center gap-2 border-b border-border bg-background-secondary px-4 py-2">
@@ -215,6 +245,28 @@ export default function ChatPage() {
         className="flex-shrink-0 border-t border-border bg-background p-3 sm:p-4"
         style={{ paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))' }}
       >
+        {/* New Thread Visibility Toggle */}
+        {currentTeamId && !currentThread && (
+          <div className="mb-2 flex items-center">
+            <button
+              onClick={() => setNewThreadVisibility(newThreadVisibility === 'shared' ? 'private' : 'shared')}
+              className="flex items-center gap-1.5 rounded-md px-2 py-1 text-xs text-text-secondary hover:bg-background-secondary hover:text-text-primary transition-colors"
+            >
+              {newThreadVisibility === 'private' ? (
+                <>
+                  <Lock size={14} />
+                  Private
+                </>
+              ) : (
+                <>
+                  <Users size={14} />
+                  Team
+                </>
+              )}
+            </button>
+          </div>
+        )}
+
         {/* Error Banner */}
         {error && (
           <div className="mb-3 flex items-start gap-2 rounded-lg border border-error/30 bg-error/10 p-3 text-sm text-error">

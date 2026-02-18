@@ -48,6 +48,9 @@ interface ChatState {
   // Project context
   currentProjectId: string | null;
 
+  // Thread visibility for new team threads
+  newThreadVisibility: 'shared' | 'private';
+
   // Agent selection
   availableAgents: AgentInfo[];
   selectedAgentId: string | null;
@@ -68,6 +71,8 @@ interface ChatState {
   confirmTool: (confirmationId: string, approved: boolean, scope?: ConfirmationScope) => Promise<void>;
   loadAgents: () => Promise<void>;
   setSelectedAgentId: (agentId: string | null) => void;
+  setNewThreadVisibility: (visibility: 'shared' | 'private') => void;
+  updateThreadVisibility: (threadId: string, visibility: 'shared' | 'private') => Promise<void>;
 }
 
 export const useChatStore = create<ChatState>((set, get) => ({
@@ -85,6 +90,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   // Project context
   currentProjectId: null,
+
+  // Thread visibility for new team threads
+  newThreadVisibility: 'private',
 
   // Agent selection state
   availableAgents: [],
@@ -124,10 +132,12 @@ export const useChatStore = create<ChatState>((set, get) => ({
     const effectiveTeamId = teamId !== undefined ? teamId : get().currentTeamId;
     // Use provided projectId or fall back to current projectId in store
     const effectiveProjectId = projectId !== undefined ? projectId : get().currentProjectId;
+    const { newThreadVisibility } = get();
     const response = await api.post<{ thread: Thread }>('/api/threads', {
       agentId,
       teamId: effectiveTeamId || undefined,
       projectId: effectiveProjectId || undefined,
+      visibility: effectiveTeamId ? newThreadVisibility : undefined,
     });
     set((state) => ({
       threads: [
@@ -139,6 +149,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
           messageCount: 0,
           agentId: response.thread.agentId,
           agentName: response.thread.agentName,
+          visibility: response.thread.visibility,
           projectId: response.thread.projectId,
         },
         ...state.threads,
@@ -264,6 +275,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     }));
 
     try {
+      const { newThreadVisibility } = get();
       const response = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -273,6 +285,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
           agentId: effectiveAgentId || undefined,
           teamId: !currentThread?.id ? effectiveTeamId || undefined : undefined,
           projectId: !currentThread?.id ? effectiveProjectId || undefined : undefined,
+          visibility: !currentThread?.id && effectiveTeamId ? newThreadVisibility : undefined,
         }),
         credentials: 'include',
       });
@@ -671,5 +684,22 @@ export const useChatStore = create<ChatState>((set, get) => ({
   setSelectedAgentId: (agentId: string | null) => {
     console.log('[Chat] setSelectedAgentId called with:', agentId);
     set({ selectedAgentId: agentId });
+  },
+
+  setNewThreadVisibility: (visibility: 'shared' | 'private') => {
+    set({ newThreadVisibility: visibility });
+  },
+
+  updateThreadVisibility: async (threadId: string, visibility: 'shared' | 'private') => {
+    await api.patch(`/api/threads/${threadId}`, { visibility });
+    set((state) => ({
+      threads: state.threads.map((t) =>
+        t.id === threadId ? { ...t, visibility } : t
+      ),
+      currentThread:
+        state.currentThread?.id === threadId
+          ? { ...state.currentThread, visibility }
+          : state.currentThread,
+    }));
   },
 }));

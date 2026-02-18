@@ -31,6 +31,7 @@ chatRouter.post('/', optionalAuth, optionalVerifiedEmail, async (req, res, next)
     const projectsEnabled = config.projects?.enabled ?? false;
     const requestTeamId = teamsEnabled ? (req.body as { teamId?: string }).teamId : undefined;
     const requestProjectId = projectsEnabled ? (req.body as { projectId?: string }).projectId : undefined;
+    const requestVisibility = (req.body as { visibility?: string }).visibility as 'shared' | 'private' | undefined;
 
     console.log(`[Chat] Received message: threadId=${threadId || 'new'}, agentId=${requestAgentId || 'none'}, content="${content.slice(0, 50)}${content.length > 50 ? '...' : ''}", files=${files?.length || 0}`);
 
@@ -74,6 +75,12 @@ chatRouter.post('/', optionalAuth, optionalVerifiedEmail, async (req, res, next)
         // Viewers can read but not send messages
         if (membership.role === 'viewer') {
           throw new AppError(HTTP_STATUS.FORBIDDEN, 'Viewers cannot send messages');
+        }
+        // Private threads only accessible to creator and admins/owners
+        if (thread.visibility === 'private' && thread.userId !== req.user.id) {
+          if (!['owner', 'admin'].includes(membership.role)) {
+            throw new AppError(HTTP_STATUS.FORBIDDEN, 'Access denied');
+          }
         }
       } else if (thread.userId && thread.userId !== req.user?.id) {
         throw new AppError(HTTP_STATUS.FORBIDDEN, 'Access denied');
@@ -170,6 +177,7 @@ chatRouter.post('/', optionalAuth, optionalVerifiedEmail, async (req, res, next)
           teamId: effectiveTeamId,
           projectId: requestProjectId || null,
           agentId: threadAgentId,
+          visibility: effectiveTeamId ? (requestVisibility || 'private') : 'shared',
         },
         include: { messages: true },
       });

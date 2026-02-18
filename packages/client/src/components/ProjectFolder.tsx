@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router';
-import { ChevronDown, ChevronRight, Folder, MessageSquare, Settings, Plus, Trash2, GitBranch } from 'lucide-react';
+import { ChevronDown, ChevronRight, Folder, MessageSquare, Settings, Plus, Trash2, GitBranch, Lock } from 'lucide-react';
 import type { ProjectWithThreadCount, ThreadSummary } from '@chaaskit/shared';
 import { useAppPath } from '../hooks/useAppPath';
 
@@ -117,7 +117,9 @@ export default function ProjectFolder({
                     : 'text-text-secondary hover:bg-background-secondary hover:text-text-primary'
                 }`}
               >
-                {thread.parentThreadId ? (
+                {thread.visibility === 'private' ? (
+                  <span title="Private thread"><Lock size={14} className="flex-shrink-0 text-text-muted" /></span>
+                ) : thread.parentThreadId ? (
                   <span title="Branched conversation">
                     <GitBranch size={14} className="flex-shrink-0" />
                   </span>

@@ -15,6 +15,7 @@ import {
   GitBranch,
   Shield,
   Users,
+  Lock,
   FolderPlus,
   LayoutDashboard,
   Puzzle,
@@ -303,7 +304,9 @@ export default function Sidebar({ onClose, onOpenSearch }: SidebarProps) {
                           : 'text-text-secondary hover:bg-background-secondary hover:text-text-primary'
                       }`}
                     >
-                      {thread.parentThreadId ? (
+                      {thread.visibility === 'private' ? (
+                        <span title="Private thread"><Lock size={14} className="flex-shrink-0 text-text-muted" /></span>
+                      ) : thread.parentThreadId ? (
                         <span title="Branched conversation">
                           <GitBranch size={14} className="flex-shrink-0" />
                         </span>

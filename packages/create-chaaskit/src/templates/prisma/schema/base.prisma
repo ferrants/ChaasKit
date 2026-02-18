@@ -104,6 +104,9 @@ model Thread {
   // Archived threads (hidden but preserved)
   archivedAt DateTime?
 
+  // Visibility: 'shared' (visible to team) or 'private' (only creator + admins)
+  visibility String @default("private")
+
   // Relations
   messages         Message[]
   sharedLinks      SharedThread[]

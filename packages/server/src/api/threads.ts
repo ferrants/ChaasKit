@@ -14,8 +14,9 @@ threadsRouter.get('/', requireAuth, requireVerifiedEmail, async (req, res, next)
     const projectId = req.query.projectId as string | undefined;
 
     // If teamId is provided, verify membership
+    let teamMembership: { role: string } | null = null;
     if (teamId) {
-      const membership = await db.teamMember.findUnique({
+      teamMembership = await db.teamMember.findUnique({
         where: {
           teamId_userId: {
             teamId,
@@ -24,7 +25,7 @@ threadsRouter.get('/', requireAuth, requireVerifiedEmail, async (req, res, next)
         },
       });
 
-      if (!membership) {
+      if (!teamMembership) {
         throw new AppError(HTTP_STATUS.FORBIDDEN, 'You are not a member of this team');
       }
     }
@@ -60,15 +61,17 @@ threadsRouter.get('/', requireAuth, requireVerifiedEmail, async (req, res, next)
     }
 
     // Build where clause
-    const whereClause: {
-      teamId?: string | null;
-      userId?: string;
-      projectId?: string | null;
-      archivedAt?: null;
-    } = {};
+    const whereClause: Record<string, unknown> = {};
 
     if (teamId) {
       whereClause.teamId = teamId;
+      // Admins/owners see everything; members/viewers see shared + own private
+      if (!teamMembership || !['owner', 'admin'].includes(teamMembership.role)) {
+        whereClause.OR = [
+          { visibility: { not: 'private' } },
+          { visibility: 'private', userId: req.user!.id },
+        ];
+      }
     } else {
       whereClause.userId = req.user!.id;
       whereClause.teamId = null;
@@ -89,6 +92,7 @@ threadsRouter.get('/', requireAuth, requireVerifiedEmail, async (req, res, next)
         title: true,
         agentId: true,
         projectId: true,
+        visibility: true,
         parentThreadId: true,
         createdAt: true,
         updatedAt: true,
@@ -111,6 +115,7 @@ threadsRouter.get('/', requireAuth, requireVerifiedEmail, async (req, res, next)
         title: thread.title,
         agentId: thread.agentId,
         agentName: agent?.name,
+        visibility: thread.visibility as 'shared' | 'private',
         projectId: thread.projectId || undefined,
         parentThreadId: thread.parentThreadId || undefined,
         createdAt: thread.createdAt,
@@ -129,7 +134,7 @@ threadsRouter.get('/', requireAuth, requireVerifiedEmail, async (req, res, next)
 // Create new thread
 threadsRouter.post('/', optionalAuth, async (req, res, next) => {
   try {
-    const { title, agentId, teamId, projectId } = createThreadSchema.parse(req.body);
+    const { title, agentId, teamId, projectId, visibility } = createThreadSchema.parse(req.body);
 
     // If teamId is provided, verify membership and write permission
     if (teamId) {
@@ -218,6 +223,7 @@ threadsRouter.post('/', optionalAuth, async (req, res, next) => {
         teamId: effectiveTeamId,
         projectId: projectId || null,
         agentId: effectiveAgentId,
+        visibility: effectiveTeamId ? (visibility || 'private') : 'shared',
       },
     });
 
@@ -266,6 +272,12 @@ threadsRouter.get('/:id', optionalAuth, async (req, res, next) => {
       if (!membership) {
         throw new AppError(HTTP_STATUS.FORBIDDEN, 'Access denied');
       }
+      // Private threads only visible to creator and admins/owners
+      if (thread.visibility === 'private' && thread.userId !== req.user.id) {
+        if (!['owner', 'admin'].includes(membership.role)) {
+          throw new AppError(HTTP_STATUS.FORBIDDEN, 'Access denied');
+        }
+      }
     } else if (thread.userId && thread.userId !== req.user?.id) {
       throw new AppError(HTTP_STATUS.FORBIDDEN, 'Access denied');
     }
@@ -288,7 +300,7 @@ threadsRouter.get('/:id', optionalAuth, async (req, res, next) => {
 threadsRouter.patch('/:id', requireAuth, async (req, res, next) => {
   try {
     const { id } = req.params;
-    const { title } = updateThreadSchema.parse(req.body);
+    const { title, visibility } = updateThreadSchema.parse(req.body);
 
     const thread = await db.thread.findUnique({
       where: { id },
@@ -315,9 +327,18 @@ threadsRouter.patch('/:id', requireAuth, async (req, res, next) => {
       throw new AppError(HTTP_STATUS.FORBIDDEN, 'Access denied');
     }
 
+    // Only the thread creator can toggle visibility
+    if (visibility !== undefined && thread.userId !== req.user!.id) {
+      throw new AppError(HTTP_STATUS.FORBIDDEN, 'Only the thread creator can change visibility');
+    }
+
+    const updateData: Record<string, unknown> = {};
+    if (title !== undefined) updateData.title = title;
+    if (visibility !== undefined) updateData.visibility = visibility;
+
     const updatedThread = await db.thread.update({
       where: { id },
-      data: { title },
+      data: updateData,
     });
 
     res.json({ thread: updatedThread });

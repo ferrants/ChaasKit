@@ -23,10 +23,12 @@ export const createThreadSchema = z.object({
   agentId: z.string().max(100).optional(),
   teamId: z.string().optional(),
   projectId: z.string().optional(),
+  visibility: z.enum(['shared', 'private']).optional(),
 });
 
 export const updateThreadSchema = z.object({
-  title: z.string().min(1).max(200),
+  title: z.string().min(1).max(200).optional(),
+  visibility: z.enum(['shared', 'private']).optional(),
 });
 
 export const shareThreadSchema = z.object({

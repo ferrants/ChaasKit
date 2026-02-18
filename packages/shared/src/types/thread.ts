@@ -8,6 +8,7 @@ export interface Thread {
   projectId?: string | null;
   agentId?: string | null;
   agentName?: string;
+  visibility?: 'shared' | 'private';
   parentThreadId?: string;
   parentMessageId?: string;
   messages: Message[];
@@ -22,6 +23,7 @@ export interface ThreadSummary {
   projectId?: string | null;
   agentId?: string | null;
   agentName?: string;
+  visibility?: 'shared' | 'private';
   parentThreadId?: string;
   createdAt: Date;
   updatedAt: Date;
