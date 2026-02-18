@@ -6,6 +6,7 @@ import prompts from 'prompts';
 import type { ManagedRoute } from '../lib/types.js';
 import { generateWrapper, isThinWrapper } from '../lib/wrapper-gen.js';
 import { insertRoutes, routeExistsInConfig } from '../lib/routes-updater.js';
+import { dbSync } from './db-sync.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -297,7 +298,10 @@ export async function sync(options: SyncOptions = {}): Promise<void> {
     }
   }
 
-  // Step 7: Summary
+  // Step 7: Sync database schema (base.prisma)
+  const dbResult = await dbSync({ quiet: true });
+
+  // Step 8: Summary
   console.log();
   if (createdRoutes > 0) {
     console.log(chalk.green(`✓ Created ${createdRoutes} route file(s)`));
@@ -311,14 +315,23 @@ export async function sync(options: SyncOptions = {}): Promise<void> {
   if (frameworkUpdated > 0) {
     console.log(chalk.green(`✓ Updated ${frameworkUpdated} framework file(s)`));
   }
+  if (dbResult.baseChanged) {
+    console.log(chalk.green(`✓ Updated prisma/schema/base.prisma`));
+  }
+  if (dbResult.customCreated) {
+    console.log(chalk.green(`✓ Created prisma/schema/custom.prisma`));
+  }
 
   const totalChanges = createdRoutes + updatedRoutes + routesAddedToConfig + frameworkUpdated;
-  if (totalChanges === 0) {
+  const schemaChanged = dbResult.baseChanged || dbResult.customCreated;
+  if (totalChanges === 0 && !schemaChanged) {
     console.log(chalk.dim('No changes made.'));
   } else {
     console.log();
     console.log('Next steps:');
-    console.log(`  ${chalk.cyan('pnpm db:generate && pnpm db:push')}  (if schema changed)`);
+    if (schemaChanged) {
+      console.log(`  ${chalk.cyan('pnpm db:generate && pnpm db:push')}  (schema was updated)`);
+    }
     console.log(`  Restart your dev server`);
   }
 }

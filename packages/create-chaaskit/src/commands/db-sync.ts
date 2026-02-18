@@ -1,6 +1,12 @@
 import fs from 'fs/promises';
 import path from 'path';
 
+export interface DbSyncResult {
+  baseChanged: boolean;
+  customCreated: boolean;
+  hadOldSchema: boolean;
+}
+
 /**
  * Sync the Prisma schema from @chaaskit/db to the project.
  * Uses Prisma's multi-file schema feature (prismaSchemaFolder).
@@ -10,9 +16,10 @@ import path from 'path';
  * - Creates custom.prisma if it doesn't exist (never overwrites)
  * - Preserves any other .prisma files in the schema directory
  */
-export async function dbSync(options: { force?: boolean } = {}): Promise<void> {
+export async function dbSync(options: { force?: boolean; quiet?: boolean } = {}): Promise<DbSyncResult> {
   const cwd = process.cwd();
   const targetSchemaDir = path.join(cwd, 'prisma', 'schema');
+  const { quiet } = options;
 
   // Find the source schema folder in node_modules
   const sourceSchemaDir = path.join(
@@ -78,26 +85,36 @@ export async function dbSync(options: { force?: boolean } = {}): Promise<void> {
 
   if (baseChanged) {
     await fs.writeFile(targetBasePath, sourceBaseContent, 'utf-8');
-    if (targetBaseExists) {
-      console.log('Updated: prisma/schema/base.prisma');
-    } else {
-      console.log('Created: prisma/schema/base.prisma');
+    if (!quiet) {
+      if (targetBaseExists) {
+        console.log('Updated: prisma/schema/base.prisma');
+      } else {
+        console.log('Created: prisma/schema/base.prisma');
+      }
     }
   } else {
-    console.log('No changes: prisma/schema/base.prisma is up to date');
+    if (!quiet) {
+      console.log('No changes: prisma/schema/base.prisma is up to date');
+    }
   }
 
   // Create custom.prisma if it doesn't exist (never overwrite)
+  let customCreated = false;
   if (!targetCustomExists) {
     const sourceCustomContent = await fs.readFile(sourceCustomPath, 'utf-8');
     await fs.writeFile(targetCustomPath, sourceCustomContent, 'utf-8');
-    console.log('Created: prisma/schema/custom.prisma');
+    customCreated = true;
+    if (!quiet) {
+      console.log('Created: prisma/schema/custom.prisma');
+    }
   } else {
-    console.log('Preserved: prisma/schema/custom.prisma (your custom models)');
+    if (!quiet) {
+      console.log('Preserved: prisma/schema/custom.prisma (your custom models)');
+    }
   }
 
   // Handle migration from old single-file schema
-  if (hadOldSchema) {
+  if (hadOldSchema && !quiet) {
     console.log('\n--- Migration Notice ---');
     console.log('Found old single-file schema: prisma/schema.prisma');
     console.log('');
@@ -110,7 +127,11 @@ export async function dbSync(options: { force?: boolean } = {}): Promise<void> {
     console.log('Only copy models YOU created to custom.prisma.');
   }
 
-  printNextSteps();
+  if (!quiet) {
+    printNextSteps();
+  }
+
+  return { baseChanged, customCreated, hadOldSchema };
 }
 
 function printNextSteps(): void {

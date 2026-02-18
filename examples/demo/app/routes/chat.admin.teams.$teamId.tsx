@@ -1,7 +1,7 @@
 import { createRoute } from '@chaaskit/client/ssr-utils';
 
 const route = createRoute({
-  title: 'Admin - Team Details',
+  title: 'Admin Team',
   load: () => import('@chaaskit/client/routes/AdminTeamRoute'),
 });
 

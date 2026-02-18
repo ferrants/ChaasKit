@@ -49,6 +49,8 @@ export { default as AdminWaitlistRoute, meta as adminWaitlistMeta, links as admi
 export { default as AdminPromoCodesRoute, meta as adminPromoCodesMeta, links as adminPromoCodesLinks, LoadingSkeleton as AdminPromoCodesLoadingSkeleton } from './AdminPromoCodesRoute';
 
 // Auth-related routes
+export { default as LoginRoute, meta as loginMeta, links as loginLinks, LoadingSkeleton as LoginLoadingSkeleton } from './LoginRoute';
+export { default as RegisterRoute, meta as registerMeta, links as registerLinks, LoadingSkeleton as RegisterLoadingSkeleton } from './RegisterRoute';
 export { default as VerifyEmailRoute, meta as verifyEmailMeta, links as verifyEmailLinks, LoadingSkeleton as VerifyEmailLoadingSkeleton } from './VerifyEmailRoute';
 export { default as AcceptInviteRoute, meta as acceptInviteMeta, links as acceptInviteLinks, LoadingSkeleton as AcceptInviteLoadingSkeleton } from './AcceptInviteRoute';
 

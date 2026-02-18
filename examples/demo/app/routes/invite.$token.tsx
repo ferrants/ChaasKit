@@ -1,7 +1,7 @@
 import { createRoute } from '@chaaskit/client/ssr-utils';
 
 const route = createRoute({
-  title: 'Accept Invitation',
+  title: 'Accept Invite',
   load: () => import('@chaaskit/client/routes/AcceptInviteRoute'),
 });
 

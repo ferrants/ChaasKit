@@ -94,6 +94,18 @@ export const managedRoutes: ManagedRoute[] = [
   },
   // Public routes
   {
+    file: 'routes/login.tsx',
+    title: 'Sign In',
+    importPath: '@chaaskit/client/routes/LoginRoute',
+    route: { path: 'login', section: 'public' },
+  },
+  {
+    file: 'routes/register.tsx',
+    title: 'Create Account',
+    importPath: '@chaaskit/client/routes/RegisterRoute',
+    route: { path: 'register', section: 'public' },
+  },
+  {
     file: 'routes/pricing.tsx',
     title: 'Pricing',
     importPath: '@chaaskit/client/routes/PricingRoute',

@@ -8,7 +8,7 @@ import { useAppPath } from '../hooks/useAppPath';
 export default function VerifyEmailPage() {
   const navigate = useNavigate();
   const appPath = useAppPath();
-  const { user, verifyEmail, resendVerification, logout } = useAuth();
+  const { user, isLoading: isAuthLoading, verifyEmail, resendVerification, logout } = useAuth();
   const config = useConfig();
   const { theme } = useTheme();
 
@@ -37,12 +37,13 @@ export default function VerifyEmailPage() {
 
   // Redirect if user is verified or not logged in
   useEffect(() => {
+    if (isAuthLoading) return;
     if (!user) {
       navigate('/login', { replace: true });
     } else if (user.emailVerified) {
       navigate(appPath('/'), { replace: true });
     }
-  }, [user, navigate, appPath]);
+  }, [user, isAuthLoading, navigate, appPath]);
 
   // Countdown timer for resend cooldown
   useEffect(() => {
@@ -88,8 +89,14 @@ export default function VerifyEmailPage() {
         setCode(''); // Clear the input for new code
       }
     } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to resend code';
+      // On 429 rate limit, parse remaining seconds and set cooldown
+      const waitMatch = message.match(/wait (\d+) seconds/);
+      if (waitMatch) {
+        setResendCooldown(parseInt(waitMatch[1], 10));
+      }
       if (!silent) {
-        setError(err instanceof Error ? err.message : 'Failed to resend code');
+        setError(message);
       }
     } finally {
       if (!silent) {
@@ -109,7 +116,7 @@ export default function VerifyEmailPage() {
     setCode(value);
   }
 
-  if (!user) {
+  if (isAuthLoading || !user) {
     return null;
   }
 

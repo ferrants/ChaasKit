@@ -29,6 +29,12 @@ export const config: AppConfig = {
       enabled: true,
       expiresInMinutes: 15,
     },
+    emailVerification: {
+      enabled: true,
+      codeLength: 6,
+      expiresInMinutes: 15,
+      allowResendAfterSeconds: 60,
+    },
     gating: {
       mode: 'open',
       inviteExpiryDays: 7,
