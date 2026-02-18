@@ -1,0 +1,43 @@
+examples/demo/prisma/schema/base.prisma
+  9f7dc8fa617e8684 107-109
+packages/client/src/stores/chatStore.ts
+  9f7dc8fa617e8684 51-53,74-75,94-96,135,140,152,278,288,688-704
+packages/server/src/api/chat.ts
+  9f7dc8fa617e8684 34,79-84,180
+packages/db/prisma/schema/base.prisma
+  9f7dc8fa617e8684 107-109
+packages/client/src/pages/ChatPage.tsx
+  9f7dc8fa617e8684 3,6,19,35,41-42,158-182,248-269
+packages/client/src/components/ProjectFolder.tsx
+  9f7dc8fa617e8684 3,120-122
+packages/client/src/components/Sidebar.tsx
+  9f7dc8fa617e8684 18,307-309
+packages/shared/src/types/thread.ts
+  9f7dc8fa617e8684 11,26
+packages/create-chaaskit/src/templates/prisma/schema/base.prisma
+  9f7dc8fa617e8684 107-109
+packages/shared/src/validation/user.ts
+  9f7dc8fa617e8684 26,30-31
+packages/server/src/api/threads.ts
+  9f7dc8fa617e8684 17,19,28,64,68-74,95,118,137,226,275-280,303,330-338,341
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.3",
+  "base_commit_sha": "71e3a30888205b309d6143bae5ef503abd00d2a4",
+  "prompts": {
+    "9f7dc8fa617e8684": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fb9f7c90-0822-4714-876c-658c56b1e5af",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Matt Ferrante <matt@heyferrante.com>",
+      "messages": [],
+      "total_additions": 175,
+      "total_deletions": 26,
+      "accepted_lines": 165,
+      "overriden_lines": 0
+    }
+  }
+}
