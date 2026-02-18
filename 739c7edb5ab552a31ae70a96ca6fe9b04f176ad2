@@ -1,0 +1,23 @@
+examples/demo/config/app.config.ts
+  83610ae98e88b4eb 32-37
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.3",
+  "base_commit_sha": "739c7edb5ab552a31ae70a96ca6fe9b04f176ad2",
+  "prompts": {
+    "83610ae98e88b4eb": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3de5e9df-6aab-4a50-a527-2ad61b9aecab",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Matt Ferrante <matt@heyferrante.com>",
+      "messages": [],
+      "total_additions": 6,
+      "total_deletions": 0,
+      "accepted_lines": 6,
+      "overriden_lines": 0
+    }
+  }
+}
