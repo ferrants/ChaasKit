@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router';
-import { Send, Paperclip, Loader2, AlertCircle, X, GitBranch, ArrowLeft, Folder, Lock, Users } from 'lucide-react';
+import { Send, Paperclip, Loader2, AlertCircle, X, GitBranch, ArrowLeft, Folder, Lock, Users, Bot } from 'lucide-react';
 import { useConfig } from '../contexts/ConfigContext';
 import { useProject } from '../contexts/ProjectContext';
 import { useTeam } from '../contexts/TeamContext';
@@ -10,6 +10,7 @@ import MessageList from '../components/MessageList';
 import ToolConfirmationModal from '../components/ToolConfirmationModal';
 import AgentSelector from '../components/AgentSelector';
 import MentionInput, { type MentionInputHandle } from '../components/MentionInput';
+import SubAgentActivity from '../components/SubAgentActivity';
 
 export default function ChatPage() {
   const { threadId } = useParams();
@@ -31,6 +32,7 @@ export default function ChatPage() {
     pendingToolCalls,
     completedToolCalls,
     pendingConfirmation,
+    activeSubThreads,
     availableAgents,
     newThreadVisibility,
     loadThread,
@@ -42,10 +44,14 @@ export default function ChatPage() {
     updateThreadVisibility,
   } = useChatStore();
 
-  // Find parent thread info if this is a branch
+  // Find parent thread info if this is a branch or sub-agent thread
   const parentThread = currentThread?.parentThreadId
     ? threads.find((t) => t.id === currentThread.parentThreadId)
     : null;
+
+  // Sub-agent threads are read-only
+  const isSubAgentThread = currentThread?.threadType === 'sub-agent';
+  const isReadOnly = isSubAgentThread;
 
   useEffect(() => {
     if (threadId) {
@@ -180,13 +186,29 @@ export default function ChatPage() {
         </div>
       )}
 
+      {/* Sub-Agent Thread Banner (read-only) */}
+      {isSubAgentThread && currentThread?.parentThreadId && (
+        <div className="flex items-center gap-2 border-b border-border bg-primary/5 px-4 py-2">
+          <Bot size={14} className="text-primary" />
+          <span className="text-xs font-medium text-primary">Sub-agent thread (read-only)</span>
+          <span className="text-xs text-text-muted">•</span>
+          <Link
+            to={appPath(`/thread/${currentThread.parentThreadId}`)}
+            className="flex items-center gap-1 text-xs text-primary hover:underline"
+          >
+            <ArrowLeft size={12} />
+            {parentThread?.title || 'Back to parent conversation'}
+          </Link>
+        </div>
+      )}
+
       {/* Branch Breadcrumb */}
-      {currentThread?.parentThreadId && (
+      {currentThread?.parentThreadId && !isSubAgentThread && (
         <div className="flex items-center gap-2 border-b border-border bg-background-secondary px-4 py-2">
           <GitBranch size={14} className="text-text-muted" />
           <span className="text-xs text-text-muted">Branched from</span>
           <Link
-            to={`/thread/${currentThread.parentThreadId}`}
+            to={appPath(`/thread/${currentThread.parentThreadId}`)}
             className="flex items-center gap-1 text-xs text-primary hover:underline"
           >
             <ArrowLeft size={12} />
@@ -231,17 +253,22 @@ export default function ChatPage() {
             </div>
           </div>
         ) : (
-          <MessageList
-            messages={currentThread.messages}
-            streamingContent={isStreaming ? streamingContent : undefined}
-            pendingToolCalls={isStreaming ? pendingToolCalls : undefined}
-            completedToolCalls={isStreaming ? completedToolCalls : undefined}
-          />
+          <>
+            <MessageList
+              messages={currentThread.messages}
+              streamingContent={isStreaming ? streamingContent : undefined}
+              pendingToolCalls={isStreaming ? pendingToolCalls : undefined}
+              completedToolCalls={isStreaming ? completedToolCalls : undefined}
+            />
+            {isStreaming && Object.keys(activeSubThreads).length > 0 && (
+              <SubAgentActivity />
+            )}
+          </>
         )}
       </div>
 
-      {/* Input Area */}
-      <div
+      {/* Input Area - hidden for read-only threads */}
+      {!isReadOnly && <div
         className="flex-shrink-0 border-t border-border bg-background p-3 sm:p-4"
         style={{ paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))' }}
       >
@@ -346,7 +373,7 @@ export default function ChatPage() {
             )}
           </button>
         </form>
-      </div>
+      </div>}
 
       {/* Tool Confirmation Modal */}
       {pendingConfirmation && (

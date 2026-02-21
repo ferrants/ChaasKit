@@ -21,6 +21,9 @@ import {
   Puzzle,
   FileText,
   Clock,
+  Bot,
+  ChevronRight,
+  Loader2,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import * as LucideIcons from 'lucide-react';
@@ -73,8 +76,9 @@ export default function Sidebar({ onClose, onOpenSearch }: SidebarProps) {
     setCurrentProjectId,
     projectsEnabled,
   } = useProject();
-  const { threads, isLoadingThreads, loadThreads, deleteThread, currentThread, clearCurrentThread, setCurrentTeamId, setCurrentProjectId: setChatStoreProjectId } =
+  const { threads, isLoadingThreads, loadThreads, deleteThread, currentThread, clearCurrentThread, setCurrentTeamId, setCurrentProjectId: setChatStoreProjectId, activeSubThreads } =
     useChatStore();
+  const [expandedSubThreadGroups, setExpandedSubThreadGroups] = useState<Set<string>>(new Set());
   const extensionPages = useSidebarPages();
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
@@ -276,15 +280,29 @@ export default function Sidebar({ onClose, onOpenSearch }: SidebarProps) {
 
             {/* Unorganized Threads (no project) */}
             {(() => {
-              const unorganizedThreads = threads.filter((t) => !t.projectId);
-              if (unorganizedThreads.length === 0 && (!projectsEnabled || projects.length === 0)) {
+              const allUnorganized = threads.filter((t) => !t.projectId);
+              // Separate sub-agent threads from top-level threads
+              const subAgentThreads = allUnorganized.filter((t) => t.threadType === 'sub-agent');
+              const topLevelThreads = allUnorganized.filter((t) => t.threadType !== 'sub-agent');
+
+              // Group sub-agent threads by parentThreadId
+              const subThreadsByParent = new Map<string, typeof subAgentThreads>();
+              for (const st of subAgentThreads) {
+                if (st.parentThreadId) {
+                  const existing = subThreadsByParent.get(st.parentThreadId) || [];
+                  existing.push(st);
+                  subThreadsByParent.set(st.parentThreadId, existing);
+                }
+              }
+
+              if (topLevelThreads.length === 0 && subAgentThreads.length === 0 && (!projectsEnabled || projects.length === 0)) {
                 return (
                   <p className="px-2 py-4 text-sm text-text-muted">
                     No conversations yet
                   </p>
                 );
               }
-              if (unorganizedThreads.length === 0) {
+              if (topLevelThreads.length === 0 && subAgentThreads.length === 0) {
                 return null;
               }
               return (
@@ -294,34 +312,106 @@ export default function Sidebar({ onClose, onOpenSearch }: SidebarProps) {
                       Other Threads
                     </div>
                   )}
-                  {unorganizedThreads.map((thread) => (
-                    <div
-                      key={thread.id}
-                      onClick={() => handleThreadClick(thread.id)}
-                      className={`group flex cursor-pointer items-center gap-2 rounded-md px-2.5 py-1.5 ${
-                        threadId === thread.id
-                          ? 'bg-background-secondary text-text-primary'
-                          : 'text-text-secondary hover:bg-background-secondary hover:text-text-primary'
-                      }`}
-                    >
-                      {thread.visibility === 'private' ? (
-                        <span title="Private thread"><Lock size={14} className="flex-shrink-0 text-text-muted" /></span>
-                      ) : thread.parentThreadId ? (
-                        <span title="Branched conversation">
-                          <GitBranch size={14} className="flex-shrink-0" />
-                        </span>
-                      ) : (
-                        <MessageSquare size={14} className="flex-shrink-0" />
-                      )}
-                      <span className="flex-1 truncate text-xs">{thread.title}</span>
-                      <button
-                        onClick={(e) => handleDeleteThread(thread.id, e)}
-                        className="rounded p-1 text-text-muted opacity-0 hover:bg-error/10 hover:text-error group-hover:opacity-100 touch-device:opacity-100 transition-opacity"
-                      >
-                        <Trash2 size={12} />
-                      </button>
-                    </div>
-                  ))}
+                  {topLevelThreads.map((thread) => {
+                    const childSubThreads = subThreadsByParent.get(thread.id) || [];
+                    const hasActiveSubThreads = Object.values(activeSubThreads).some(
+                      (s) => s.parentThreadId === thread.id && s.isStreaming
+                    );
+                    const isExpanded = expandedSubThreadGroups.has(thread.id);
+                    const hasChildren = childSubThreads.length > 0 || hasActiveSubThreads;
+
+                    return (
+                      <div key={thread.id}>
+                        <div
+                          onClick={() => handleThreadClick(thread.id)}
+                          className={`group flex cursor-pointer items-center gap-2 rounded-md px-2.5 py-1.5 ${
+                            threadId === thread.id
+                              ? 'bg-background-secondary text-text-primary'
+                              : 'text-text-secondary hover:bg-background-secondary hover:text-text-primary'
+                          }`}
+                        >
+                          {/* Sub-thread expand toggle */}
+                          {hasChildren ? (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setExpandedSubThreadGroups((prev) => {
+                                  const next = new Set(prev);
+                                  if (next.has(thread.id)) next.delete(thread.id);
+                                  else next.add(thread.id);
+                                  return next;
+                                });
+                              }}
+                              className="flex-shrink-0 p-0.5 text-text-muted hover:text-text-primary"
+                            >
+                              <ChevronRight
+                                size={12}
+                                className={`transition-transform ${isExpanded ? 'rotate-90' : ''}`}
+                              />
+                            </button>
+                          ) : null}
+                          {thread.visibility === 'private' ? (
+                            <span title="Private thread"><Lock size={14} className="flex-shrink-0 text-text-muted" /></span>
+                          ) : thread.parentThreadId ? (
+                            <span title="Branched conversation">
+                              <GitBranch size={14} className="flex-shrink-0" />
+                            </span>
+                          ) : (
+                            <MessageSquare size={14} className="flex-shrink-0" />
+                          )}
+                          <span className="flex-1 truncate text-xs">{thread.title}</span>
+                          {hasActiveSubThreads && (
+                            <Loader2 size={12} className="flex-shrink-0 animate-spin text-primary" />
+                          )}
+                          <button
+                            onClick={(e) => handleDeleteThread(thread.id, e)}
+                            className="rounded p-1 text-text-muted opacity-0 hover:bg-error/10 hover:text-error group-hover:opacity-100 touch-device:opacity-100 transition-opacity"
+                          >
+                            <Trash2 size={12} />
+                          </button>
+                        </div>
+
+                        {/* Nested sub-agent threads */}
+                        {isExpanded && hasChildren && (
+                          <div className="ml-4 space-y-0.5 border-l border-border pl-2">
+                            {childSubThreads.map((subThread) => (
+                              <div
+                                key={subThread.id}
+                                onClick={() => handleThreadClick(subThread.id)}
+                                className={`group flex cursor-pointer items-center gap-2 rounded-md px-2 py-1 ${
+                                  threadId === subThread.id
+                                    ? 'bg-background-secondary text-text-primary'
+                                    : 'text-text-secondary hover:bg-background-secondary hover:text-text-primary'
+                                }`}
+                              >
+                                <Bot size={12} className="flex-shrink-0 text-primary" />
+                                <span className="flex-1 truncate text-xs">{subThread.title}</span>
+                                <button
+                                  onClick={(e) => handleDeleteThread(subThread.id, e)}
+                                  className="rounded p-0.5 text-text-muted opacity-0 hover:bg-error/10 hover:text-error group-hover:opacity-100 transition-opacity"
+                                >
+                                  <Trash2 size={10} />
+                                </button>
+                              </div>
+                            ))}
+                            {/* Active streaming sub-threads not yet in the thread list */}
+                            {Object.values(activeSubThreads)
+                              .filter((s) => s.parentThreadId === thread.id && !childSubThreads.find((ct) => ct.id === s.id))
+                              .map((activeSub) => (
+                                <div
+                                  key={activeSub.id}
+                                  className="flex items-center gap-2 rounded-md px-2 py-1 text-text-muted"
+                                >
+                                  <Bot size={12} className="flex-shrink-0 text-primary" />
+                                  <span className="flex-1 truncate text-xs">{activeSub.agentName}</span>
+                                  <Loader2 size={10} className="flex-shrink-0 animate-spin text-primary" />
+                                </div>
+                              ))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               );
             })()}

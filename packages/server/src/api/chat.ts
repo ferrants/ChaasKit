@@ -1,21 +1,18 @@
 import { Router } from 'express';
 import { db } from '@chaaskit/db';
 import { HTTP_STATUS, sendMessageSchema } from '@chaaskit/shared';
-import type { MCPContentItem } from '@chaaskit/shared';
 import { optionalAuth, requireAuth, optionalVerifiedEmail } from '../middleware/auth.js';
 import { AppError } from '../middleware/errorHandler.js';
 import { getConfig } from '../config/loader.js';
-import { createAgentService, type ChatMessage, type AnthropicMessageContent } from '../services/agent.js';
+import { createAgentService } from '../services/agent.js';
 import { checkUsageLimits, incrementUsage } from '../services/usage.js';
 import { recordUsage } from '../services/metering.js';
 import { getReferralForUser, grantReferralCreditsIfEligible } from '../services/referrals.js';
-import { mcpManager } from '../mcp/client.js';
 import { pendingConfirmations, type ConfirmationScope } from '../services/pendingConfirmation.js';
-import { checkToolConfirmationRequired, createDenialToolResult } from '../services/toolConfirmation.js';
-import { getAgentById, getDefaultAgent, filterToolsForAgent, toAgentConfig, isBuiltInAgent, getNativeToolsForAgentFiltered } from '../services/agents.js';
-import { executeNativeTool, isNativeTool, resolveNativeToolTemplate, type NativeToolForAgent } from '../tools/index.js';
+import { getAgentById, getDefaultAgent, toAgentConfig, isBuiltInAgent } from '../services/agents.js';
 import { documentService } from '../services/documents.js';
 import { notifyMessageLiked } from '../services/slack/notifications.js';
+import { runAgenticLoop } from '../services/agentic-loop.js';
 
 export const chatRouter = Router();
 
@@ -246,12 +243,6 @@ chatRouter.post('/', optionalAuth, optionalVerifiedEmail, async (req, res, next)
     // Send thread info (including title for sidebar update)
     res.write(`data: ${JSON.stringify({ type: 'thread', threadId: thread.id, title: thread.title })}\n\n`);
 
-    // Create agent service from thread's agent definition
-    const agentConfig = agentDef ? toAgentConfig(agentDef) : config.agent;
-    console.log(`[Chat] Creating agent service for agent: ${agentDef?.name || 'default'} (${agentDef?.id || 'legacy'})`);
-
-    const agentService = createAgentService(agentConfig);
-
     // Build conversation history
     const history = thread.messages.map((msg: { role: string; content: string }) => ({
       role: msg.role as 'user' | 'assistant',
@@ -335,38 +326,6 @@ chatRouter.post('/', optionalAuth, optionalVerifiedEmail, async (req, res, next)
     // Generate a visitor ID for this request (used for SSE connection lookup)
     const visitorId = `visitor_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
-    // Get available MCP tools (including user-credential servers)
-    const mcpServers = config.mcp?.servers || [];
-    console.log(`[Chat] Fetching MCP tools for user ${req.user?.id || 'anonymous'}...`);
-    const allMcpTools = await mcpManager.listAllToolsForUser(req.user?.id, mcpServers, thread.teamId);
-
-    // Get native tools available to this agent (filters by credential availability)
-    const nativeTools = await getNativeToolsForAgentFiltered(threadAgentId, {
-      userId: req.user?.id,
-      teamId: thread.teamId,
-    });
-    console.log(`[Chat] ${nativeTools.length} native tools available to agent`);
-
-    // Combine MCP and native tools, then filter based on agent's allowedTools
-    const allTools = [...allMcpTools, ...nativeTools];
-    const filteredTools = filterToolsForAgent(threadAgentId, allTools);
-
-    console.log(`[Chat] ${filteredTools.length} total tools available to agent (${allMcpTools.length} MCP + ${nativeTools.length} native, filtered by agent config)`);
-    if (filteredTools.length > 0) {
-      console.log(`[Chat] Tools: ${JSON.stringify(filteredTools.map(t => ({ name: t.name, server: t.serverId, desc: t.description?.slice(0, 50) })), null, 2)}`);
-    }
-
-    // Build a lookup for tool metadata (to find UI resources and identify native tools)
-    const toolMetaLookup = new Map<string, { serverId: string; _meta?: Record<string, unknown> }>();
-    for (const tool of filteredTools) {
-      toolMetaLookup.set(tool.name, { serverId: tool.serverId, _meta: '_meta' in tool ? tool._meta : undefined });
-    }
-
-    // Stream response with tool loop
-    let fullContent = '';
-    let totalUsage = { inputTokens: 0, outputTokens: 0 };
-    const toolCalls: Array<{ id: string; name: string; serverId: string; input: Record<string, unknown>; result: MCPContentItem[]; isError?: boolean; structuredContent?: Record<string, unknown>; uiResource?: { uri: string; text?: string; blob?: string; mimeType?: string; isOpenAiFormat?: boolean; toolInput?: Record<string, unknown>; toolOutput?: MCPContentItem[] | Record<string, unknown> } }> = [];
-
     try {
       console.log(`[Chat] Starting stream with ${history.length} messages in history`);
 
@@ -374,345 +333,27 @@ chatRouter.post('/', optionalAuth, optionalVerifiedEmail, async (req, res, next)
       res.write(`data: ${JSON.stringify({ type: 'start' })}\n\n`);
       console.log(`[Chat] Stream started, receiving chunks...`);
 
-      // Agentic loop - continues until no more tool calls
-      let conversationMessages: ChatMessage[] = [...history];
-      let loopCount = 0;
-      const maxLoops = 10; // Prevent infinite loops
+      // Get system prompt from agent definition
+      const systemPrompt = agentDef && isBuiltInAgent(agentDef) ? agentDef.systemPrompt : undefined;
 
-      while (loopCount < maxLoops) {
-        loopCount++;
-        let currentLoopText = '';
-        const currentLoopToolCalls: Array<{ id: string; name: string; serverId: string; input: Record<string, unknown> }> = [];
-        let stopReason: string | undefined;
+      // Run the agentic loop
+      const { fullContent, toolCalls, totalUsage } = await runAgenticLoop(res, {
+        threadId: thread.id,
+        agentId: threadAgentId,
+        conversationMessages: [...history],
+        systemPrompt,
+        teamContext,
+        projectContext,
+        mentionContext,
+        userContext,
+        userId: req.user?.id,
+        teamId: thread.teamId,
+        visitorId,
+        threadAllowedTools,
+        files,
+      });
 
-        // Get system prompt from agent definition
-        const systemPrompt = agentDef && isBuiltInAgent(agentDef) ? agentDef.systemPrompt : undefined;
-
-        const stream = agentService.chat(conversationMessages, {
-          systemPrompt,
-          teamContext,
-          projectContext,
-          mentionContext,
-          userContext,
-          files: loopCount === 1 ? files : undefined, // Only include files on first iteration
-          tools: filteredTools.length > 0 ? filteredTools : undefined,
-        });
-
-        let chunkCount = 0;
-        for await (const chunk of stream) {
-          if (chunk.type === 'text' && chunk.content) {
-            currentLoopText += chunk.content;
-            fullContent += chunk.content;
-            res.write(`data: ${JSON.stringify({ type: 'delta', content: chunk.content })}\n\n`);
-            chunkCount++;
-          } else if (chunk.type === 'tool_use' && chunk.toolUse) {
-            // Send tool_use event to frontend
-            console.log(`[Chat] Sending tool_use event: ${chunk.toolUse.name} (id: ${chunk.toolUse.id})`);
-            res.write(`data: ${JSON.stringify({
-              type: 'tool_use',
-              id: chunk.toolUse.id,
-              name: chunk.toolUse.name,
-              serverId: chunk.toolUse.serverId,
-              input: chunk.toolUse.input,
-            })}\n\n`);
-
-            currentLoopToolCalls.push({
-              id: chunk.toolUse.id,
-              name: chunk.toolUse.name,
-              serverId: chunk.toolUse.serverId,
-              input: chunk.toolUse.input,
-            });
-          } else if (chunk.type === 'stop' && chunk.stopReason) {
-            stopReason = chunk.stopReason;
-          } else if (chunk.type === 'usage' && chunk.usage) {
-            totalUsage.inputTokens += chunk.usage.inputTokens;
-            totalUsage.outputTokens += chunk.usage.outputTokens;
-          }
-        }
-
-        console.log(`[Chat] Loop ${loopCount}: ${chunkCount} text chunks, ${currentLoopToolCalls.length} tool calls, stop=${stopReason}`);
-
-        // If no tool calls or stop reason is not tool_use, we're done
-        if (currentLoopToolCalls.length === 0 || stopReason !== 'tool_use') {
-          break;
-        }
-
-        // Execute tool calls and collect results
-        const toolResultBlocks: AnthropicMessageContent[] = [];
-
-        for (const toolCall of currentLoopToolCalls) {
-          console.log(`[Chat] Executing tool: ${toolCall.name} on server ${toolCall.serverId}`);
-
-          const isNativeToolCall = isNativeTool(toolCall.serverId);
-
-          // Find server config for user-credential support (not needed for native tools)
-          const serverConfig = isNativeToolCall ? undefined : mcpServers.find((s) => s.id === toolCall.serverId);
-          if (!isNativeToolCall && !serverConfig) {
-            console.error(`[Chat] Server config not found for ${toolCall.serverId}`);
-            continue;
-          }
-
-          const toolId = `${toolCall.serverId}:${toolCall.name}`;
-
-          // Check if tool confirmation is required
-          const confirmCheck = checkToolConfirmationRequired({
-            serverId: toolCall.serverId,
-            toolName: toolCall.name,
-            userId: req.user?.id || '',
-            userSettings: userContext || undefined,
-            threadAllowedTools,
-          });
-
-          let toolResult: { content: MCPContentItem[]; isError?: boolean; structuredContent?: Record<string, unknown> };
-
-          if (confirmCheck.required && req.user) {
-            // Tool requires confirmation - create pending and wait for user response
-            console.log(`[Chat] Tool ${toolId} requires confirmation`);
-
-            // Send pending confirmation event to frontend
-            const { id: confirmationId, promise: confirmationPromise } = pendingConfirmations.create({
-              visitorId,
-              threadId: thread.id,
-              userId: req.user.id,
-              serverId: toolCall.serverId,
-              toolName: toolCall.name,
-              toolArgs: toolCall.input,
-            });
-
-            res.write(`data: ${JSON.stringify({
-              type: 'tool_pending_confirmation',
-              confirmationId,
-              serverId: toolCall.serverId,
-              toolName: toolCall.name,
-              toolArgs: toolCall.input,
-            })}\n\n`);
-
-            // Wait for user response
-            const confirmationResult = await confirmationPromise;
-
-            // Send confirmation result event
-            res.write(`data: ${JSON.stringify({
-              type: 'tool_confirmed',
-              confirmationId,
-              approved: confirmationResult.approved,
-            })}\n\n`);
-
-            if (!confirmationResult.approved) {
-              // User denied - create denial result
-              console.log(`[Chat] User denied tool ${toolId}`);
-              toolResult = {
-                content: [{ type: 'text', text: createDenialToolResult(toolCall.name) }],
-                isError: false, // Not an error, just a denial
-              };
-            } else {
-              // User approved - check scope and execute
-              if (confirmationResult.scope === 'thread') {
-                // Add to thread-level allowlist
-                threadAllowedTools.push(toolId);
-                console.log(`[Chat] Added ${toolId} to thread allowlist`);
-              }
-              // Note: 'always' scope is handled in the /confirm-tool endpoint
-
-              // Execute the tool
-              if (isNativeToolCall) {
-                toolResult = await executeNativeTool(toolCall.name, toolCall.input, {
-                  userId: req.user?.id,
-                  threadId: thread.id,
-                  agentId: threadAgentId || undefined,
-                  teamId: thread.teamId ?? undefined,
-                });
-              } else {
-                toolResult = await mcpManager.callToolForUser(
-                  req.user?.id,
-                  toolCall.serverId,
-                  toolCall.name,
-                  toolCall.input,
-                  serverConfig!,
-                  thread.teamId
-                );
-              }
-            }
-          } else {
-            // Tool is auto-approved or no user context
-            if (confirmCheck.autoApproveReason && req.user) {
-              console.log(`[Chat] Tool ${toolId} auto-approved: ${confirmCheck.autoApproveReason}`);
-              res.write(`data: ${JSON.stringify({
-                type: 'tool_auto_approved',
-                toolCallId: toolCall.id,
-                serverId: toolCall.serverId,
-                toolName: toolCall.name,
-                reason: confirmCheck.autoApproveReason,
-              })}\n\n`);
-            }
-
-            // Execute the tool
-            if (isNativeToolCall) {
-              toolResult = await executeNativeTool(toolCall.name, toolCall.input, {
-                userId: req.user?.id,
-                threadId: thread.id,
-                agentId: threadAgentId || undefined,
-                teamId: thread.teamId ?? undefined,
-              });
-            } else {
-              toolResult = await mcpManager.callToolForUser(
-                req.user?.id,
-                toolCall.serverId,
-                toolCall.name,
-                toolCall.input,
-                serverConfig!,
-                thread.teamId
-              );
-            }
-          }
-
-          const result = toolResult;
-
-          // Log the full result from callToolForUser
-          console.log(`[Chat] Tool ${toolCall.name} result:`, {
-            contentLength: result.content?.length,
-            contentPreview: result.content?.map(c => c.text?.slice(0, 100) || c.type),
-            hasStructuredContent: !!result.structuredContent,
-            structuredContentKeys: result.structuredContent ? Object.keys(result.structuredContent) : null,
-            isError: result.isError,
-          });
-
-          // Check if tool has a UI resource template to fetch
-          const toolMeta = toolMetaLookup.get(toolCall.name);
-          console.log(`[Chat] Tool meta lookup for ${toolCall.name}:`, toolMeta ? { hasMetadata: !!toolMeta._meta, keys: toolMeta._meta ? Object.keys(toolMeta._meta) : [] } : 'NOT FOUND');
-
-          let uiResource: { text?: string; blob?: string; mimeType?: string } | null = null;
-          let resourceUri: string | undefined;
-          let isOpenAiFormat = false;
-
-          // Check for native tool templates first
-          if (isNativeToolCall) {
-            const nativeTemplate = await resolveNativeToolTemplate(toolCall.name);
-            if (nativeTemplate) {
-              uiResource = nativeTemplate;
-              resourceUri = `native://${toolCall.name}/template`;
-              isOpenAiFormat = true; // Use OpenAI format for consistent rendering
-              console.log(`[Chat] Resolved native tool template for ${toolCall.name}, length=${nativeTemplate.text.length}`);
-            }
-          } else {
-            // MCP tool - check for resource URI
-            const openaiOutputTemplate = toolMeta?._meta?.['openai/outputTemplate'];
-            const uiResourceUri = toolMeta?._meta?.['ui/resourceUri'];
-            resourceUri = (openaiOutputTemplate || uiResourceUri) as string | undefined;
-            console.log(`[Chat] UI resource URI for ${toolCall.name}: ${resourceUri || 'none'} (openai: ${openaiOutputTemplate}, ui: ${uiResourceUri})`);
-            isOpenAiFormat = !!openaiOutputTemplate;
-
-            if (resourceUri && typeof resourceUri === 'string') {
-              console.log(`[Chat] Tool ${toolCall.name} has UI resource: ${resourceUri} (openai format: ${isOpenAiFormat})`);
-              uiResource = await mcpManager.readResourceForUser(
-                req.user?.id || '',
-                toolCall.serverId,
-                resourceUri,
-                serverConfig!,
-                thread.teamId
-              );
-              if (uiResource) {
-                console.log(`[Chat] Fetched UI resource: ${resourceUri}, mimeType=${uiResource.mimeType}, length=${uiResource.text?.length || uiResource.blob?.length || 0}`);
-              }
-            }
-          }
-
-          // Send tool_result event to frontend (include UI resource if available)
-          // Use structuredContent as toolOutput if available, otherwise fall back to content
-          const toolOutput = result.structuredContent || result.content;
-          const toolResultEvent = {
-            type: 'tool_result',
-            id: toolCall.id,
-            name: toolCall.name,
-            serverId: toolCall.serverId,
-            input: toolCall.input,
-            content: result.content,
-            isError: result.isError,
-            structuredContent: result.structuredContent,
-            uiResource: uiResource ? {
-              uri: resourceUri,
-              text: uiResource.text,
-              blob: uiResource.blob,
-              mimeType: uiResource.mimeType,
-              isOpenAiFormat,
-              toolInput: toolCall.input,
-              toolOutput,
-            } : undefined,
-          };
-          console.log(`[Chat] Sending tool_result event:`, {
-            id: toolResultEvent.id,
-            hasContent: !!toolResultEvent.content?.length,
-            hasUiResource: !!toolResultEvent.uiResource,
-            uiResourceMimeType: toolResultEvent.uiResource?.mimeType,
-            uiResourceTextLength: toolResultEvent.uiResource?.text?.length,
-          });
-          res.write(`data: ${JSON.stringify(toolResultEvent)}\n\n`);
-
-          // Store for message history (including UI resource for persistence)
-          toolCalls.push({
-            ...toolCall,
-            result: result.content,
-            isError: result.isError,
-            structuredContent: result.structuredContent,
-            uiResource: uiResource ? {
-              uri: resourceUri as string,
-              text: uiResource.text,
-              blob: uiResource.blob,
-              mimeType: uiResource.mimeType,
-              isOpenAiFormat,
-              toolInput: toolCall.input,
-              toolOutput,
-            } : undefined,
-          });
-
-          // Build tool result block for next iteration
-          // Include both content text and structuredContent for full context
-          let resultText = result.content
-            .map((c) => c.text || JSON.stringify(c))
-            .join('\n');
-
-          // Append structuredContent if available (this is the rich data the widget renders)
-          if (result.structuredContent) {
-            resultText += '\n\nThe user has been shown this structured data:\n' + JSON.stringify(result.structuredContent, null, 2);
-          }
-
-          console.log(`[Chat] Tool result text for agent (length=${resultText.length}):`, resultText.slice(0, 500) + (resultText.length > 500 ? '...' : ''));
-
-          toolResultBlocks.push({
-            type: 'tool_result',
-            tool_use_id: toolCall.id,
-            content: resultText,
-            is_error: result.isError,
-          });
-        }
-
-        // Build assistant message with tool uses for context
-        const assistantContent: AnthropicMessageContent[] = [];
-        if (currentLoopText) {
-          assistantContent.push({ type: 'text', text: currentLoopText });
-        }
-        for (const tc of currentLoopToolCalls) {
-          assistantContent.push({
-            type: 'tool_use',
-            id: tc.id,
-            name: tc.name,
-            input: tc.input,
-          });
-        }
-
-        // Add assistant message with tool uses
-        conversationMessages.push({
-          role: 'assistant',
-          content: assistantContent,
-        });
-
-        // Add tool results as user message
-        conversationMessages.push({
-          role: 'user',
-          content: toolResultBlocks,
-        });
-      }
-
-      console.log(`[Chat] Stream complete after ${loopCount} loops: ${fullContent.length} chars, ${toolCalls.length} tool calls`);
+      console.log(`[Chat] Stream complete: ${fullContent.length} chars, ${toolCalls.length} tool calls`);
 
       // Create assistant message with tool calls
       const assistantMessage = await db.message.create({

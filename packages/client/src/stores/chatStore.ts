@@ -32,6 +32,21 @@ export interface PendingToolConfirmation {
 
 export type ConfirmationScope = 'once' | 'thread' | 'always';
 
+export interface SubThreadState {
+  id: string;
+  parentThreadId: string;
+  agentId: string;
+  agentName: string;
+  title: string;
+  isStreaming: boolean;
+  streamingContent: string;
+  pendingToolCalls: PendingToolCall[];
+  completedToolCalls: CompletedToolCall[];
+  status: 'running' | 'done' | 'error';
+  pendingConfirmation: PendingToolConfirmation | null;
+  error?: string;
+}
+
 interface ChatState {
   threads: ThreadSummary[];
   currentThread: Thread | null;
@@ -41,6 +56,9 @@ interface ChatState {
   pendingToolCalls: PendingToolCall[];
   completedToolCalls: CompletedToolCall[];
   pendingConfirmation: PendingToolConfirmation | null;
+
+  // Sub-agent threads
+  activeSubThreads: Record<string, SubThreadState>;
 
   // Team context
   currentTeamId: string | null;
@@ -69,6 +87,7 @@ interface ChatState {
   branchFromMessage: (messageId: string) => Promise<Thread>;
   clearCurrentThread: () => void;
   confirmTool: (confirmationId: string, approved: boolean, scope?: ConfirmationScope) => Promise<void>;
+  confirmSubThreadTool: (subThreadId: string, confirmationId: string, approved: boolean, scope?: ConfirmationScope) => Promise<void>;
   loadAgents: () => Promise<void>;
   setSelectedAgentId: (agentId: string | null) => void;
   setNewThreadVisibility: (visibility: 'shared' | 'private') => void;
@@ -84,6 +103,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
   pendingToolCalls: [],
   completedToolCalls: [],
   pendingConfirmation: null,
+
+  // Sub-agent threads
+  activeSubThreads: {},
 
   // Team context
   currentTeamId: null,
@@ -353,6 +375,12 @@ export const useChatStore = create<ChatState>((set, get) => ({
                   result: MCPContent[];
                   isError?: boolean;
                 }>;
+                // Sub-thread fields
+                subThreadId?: string;
+                parentThreadId?: string;
+                agentId?: string;
+                agentName?: string;
+                summary?: string;
               };
 
               if (data.type === 'thread' && data.threadId) {
@@ -463,6 +491,144 @@ export const useChatStore = create<ChatState>((set, get) => ({
                       : tc
                   ),
                 }));
+              } else if (data.type === 'sub_thread_start' && data.subThreadId) {
+                // A sub-agent thread has started
+                console.log('[Chat] Sub-thread started:', data.subThreadId, data.agentName);
+                set((state) => ({
+                  activeSubThreads: {
+                    ...state.activeSubThreads,
+                    [data.subThreadId!]: {
+                      id: data.subThreadId!,
+                      parentThreadId: data.parentThreadId || threadId || '',
+                      agentId: data.agentId || '',
+                      agentName: data.agentName || 'Sub-Agent',
+                      title: data.title || 'Sub-agent task',
+                      isStreaming: true,
+                      streamingContent: '',
+                      pendingToolCalls: [],
+                      completedToolCalls: [],
+                      status: 'running' as const,
+                      pendingConfirmation: null,
+                    },
+                  },
+                }));
+              } else if (data.type === 'sub_thread_delta' && data.subThreadId && data.content) {
+                set((state) => {
+                  const sub = state.activeSubThreads[data.subThreadId!];
+                  if (!sub) return state;
+                  return {
+                    activeSubThreads: {
+                      ...state.activeSubThreads,
+                      [data.subThreadId!]: {
+                        ...sub,
+                        streamingContent: sub.streamingContent + data.content!,
+                      },
+                    },
+                  };
+                });
+              } else if (data.type === 'sub_thread_tool_use' && data.subThreadId && data.id) {
+                set((state) => {
+                  const sub = state.activeSubThreads[data.subThreadId!];
+                  if (!sub) return state;
+                  return {
+                    activeSubThreads: {
+                      ...state.activeSubThreads,
+                      [data.subThreadId!]: {
+                        ...sub,
+                        pendingToolCalls: [...sub.pendingToolCalls, {
+                          id: data.id!,
+                          name: data.name || '',
+                          serverId: data.serverId || '',
+                          input: data.input || {},
+                        }],
+                      },
+                    },
+                  };
+                });
+              } else if (data.type === 'sub_thread_tool_result' && data.subThreadId && data.id) {
+                set((state) => {
+                  const sub = state.activeSubThreads[data.subThreadId!];
+                  if (!sub) return state;
+                  const pendingCall = sub.pendingToolCalls.find((tc) => tc.id === data.id);
+                  const completedCall = pendingCall
+                    ? { ...pendingCall, result: (data.content as unknown as MCPContent[]) || [], isError: data.isError, uiResource: data.uiResource, structuredContent: data.structuredContent }
+                    : { id: data.id!, name: data.name || '', serverId: data.serverId || '', input: data.input || {}, result: (data.content as unknown as MCPContent[]) || [], isError: data.isError, uiResource: data.uiResource, structuredContent: data.structuredContent };
+                  return {
+                    activeSubThreads: {
+                      ...state.activeSubThreads,
+                      [data.subThreadId!]: {
+                        ...sub,
+                        pendingToolCalls: sub.pendingToolCalls.filter((tc) => tc.id !== data.id),
+                        completedToolCalls: [...sub.completedToolCalls, completedCall],
+                      },
+                    },
+                  };
+                });
+              } else if (data.type === 'sub_thread_tool_pending_confirmation' && data.subThreadId && data.confirmationId) {
+                set((state) => {
+                  const sub = state.activeSubThreads[data.subThreadId!];
+                  if (!sub) return state;
+                  return {
+                    activeSubThreads: {
+                      ...state.activeSubThreads,
+                      [data.subThreadId!]: {
+                        ...sub,
+                        pendingConfirmation: {
+                          confirmationId: data.confirmationId!,
+                          serverId: data.serverId || '',
+                          toolName: data.toolName || '',
+                          toolArgs: data.toolArgs,
+                        },
+                      },
+                    },
+                  };
+                });
+              } else if (data.type === 'sub_thread_tool_confirmed' && data.subThreadId) {
+                set((state) => {
+                  const sub = state.activeSubThreads[data.subThreadId!];
+                  if (!sub) return state;
+                  return {
+                    activeSubThreads: {
+                      ...state.activeSubThreads,
+                      [data.subThreadId!]: { ...sub, pendingConfirmation: null },
+                    },
+                  };
+                });
+              } else if (data.type === 'sub_thread_done' && data.subThreadId) {
+                console.log('[Chat] Sub-thread done:', data.subThreadId);
+                set((state) => {
+                  const sub = state.activeSubThreads[data.subThreadId!];
+                  if (!sub) return state;
+                  return {
+                    activeSubThreads: {
+                      ...state.activeSubThreads,
+                      [data.subThreadId!]: {
+                        ...sub,
+                        isStreaming: false,
+                        status: 'done' as const,
+                      },
+                    },
+                  };
+                });
+                // Refresh thread list to show sub-thread in sidebar
+                get().loadThreads();
+              } else if (data.type === 'sub_thread_error' && data.subThreadId) {
+                console.error('[Chat] Sub-thread error:', data.subThreadId, data.error);
+                set((state) => {
+                  const sub = state.activeSubThreads[data.subThreadId!];
+                  if (!sub) return state;
+                  return {
+                    activeSubThreads: {
+                      ...state.activeSubThreads,
+                      [data.subThreadId!]: {
+                        ...sub,
+                        isStreaming: false,
+                        status: 'error' as const,
+                        error: data.error,
+                      },
+                    },
+                  };
+                });
               } else if (data.type === 'done') {
                 messageId = data.messageId || '';
                 // Note: We don't overwrite completedToolCalls here because
@@ -529,12 +695,13 @@ export const useChatStore = create<ChatState>((set, get) => ({
         pendingToolCalls: [],
         completedToolCalls: [],
         pendingConfirmation: null,
+        activeSubThreads: {},
       }));
 
       // Refresh thread list to update previews
       get().loadThreads();
     } catch (error) {
-      set({ isStreaming: false, streamingContent: '', pendingConfirmation: null });
+      set({ isStreaming: false, streamingContent: '', pendingConfirmation: null, activeSubThreads: {} });
       throw error;
     }
   },
@@ -657,6 +824,36 @@ export const useChatStore = create<ChatState>((set, get) => ({
       console.error('[Chat] Error confirming tool:', error);
       // Clear pending confirmation on error to prevent UI from being stuck
       set({ pendingConfirmation: null });
+      throw error;
+    }
+  },
+
+  confirmSubThreadTool: async (subThreadId: string, confirmationId: string, approved: boolean, scope?: ConfirmationScope) => {
+    try {
+      console.log('[Chat] Confirming sub-thread tool:', subThreadId, confirmationId, approved, scope);
+      const response = await fetch('/api/chat/confirm-tool', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ confirmationId, approved, scope }),
+        credentials: 'include',
+      });
+
+      if (!response.ok) {
+        throw new Error(`Confirm tool failed: ${response.status}`);
+      }
+    } catch (error) {
+      console.error('[Chat] Error confirming sub-thread tool:', error);
+      // Clear pending confirmation for the sub-thread
+      set((state) => {
+        const sub = state.activeSubThreads[subThreadId];
+        if (!sub) return state;
+        return {
+          activeSubThreads: {
+            ...state.activeSubThreads,
+            [subThreadId]: { ...sub, pendingConfirmation: null },
+          },
+        };
+      });
       throw error;
     }
   },

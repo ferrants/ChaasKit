@@ -95,6 +95,9 @@ model Thread {
   projectId String?
   project   Project?  @relation(fields: [projectId], references: [id], onDelete: SetNull)
 
+  // Thread type: 'chat' (default), 'branch', 'sub-agent'
+  threadType String @default("chat")
+
   // Branching support
   parentThreadId  String?
   parentMessageId String?

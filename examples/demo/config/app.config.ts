@@ -50,11 +50,28 @@ export const config: AppConfig = {
         name: 'Assistant',
         provider: 'openai', // or 'anthropic'
         model: 'gpt-4o-mini',
-        systemPrompt: 'You are a helpful AI assistant.',
+        systemPrompt: 'You are a helpful AI assistant. You can delegate specialized tasks to sub-agents using the delegate_to_agent tool when appropriate.',
         maxTokens: 4096,
         isDefault: true,
-        // Enable all native tools (web-scrape, etc.)
+        // Enable all native tools (web-scrape, delegate_to_agent, etc.)
         allowedTools: ['native:*', 'marketplaceadpros:*'],
+      },
+      {
+        id: 'researcher',
+        name: 'Research Agent',
+        provider: 'openai',
+        model: 'gpt-4o-mini',
+        systemPrompt: 'You are a research specialist. You thoroughly investigate topics, provide detailed analysis with sources, and present your findings in a clear, structured format.',
+        maxTokens: 4096,
+        allowedTools: ['native:web-scrape'],
+      },
+      {
+        id: 'coder',
+        name: 'Coding Agent',
+        provider: 'openai',
+        model: 'gpt-4o-mini',
+        systemPrompt: 'You are a coding specialist. You write clean, well-documented code. You explain your implementation decisions and suggest tests.',
+        maxTokens: 4096,
       },
     ],
   },

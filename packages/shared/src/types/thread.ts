@@ -1,5 +1,7 @@
 import type { Message } from './message.js';
 
+export type ThreadType = 'chat' | 'branch' | 'sub-agent';
+
 export interface Thread {
   id: string;
   title: string;
@@ -8,6 +10,7 @@ export interface Thread {
   projectId?: string | null;
   agentId?: string | null;
   agentName?: string;
+  threadType?: ThreadType;
   visibility?: 'shared' | 'private';
   parentThreadId?: string;
   parentMessageId?: string;
@@ -23,6 +26,7 @@ export interface ThreadSummary {
   projectId?: string | null;
   agentId?: string | null;
   agentName?: string;
+  threadType?: ThreadType;
   visibility?: 'shared' | 'private';
   parentThreadId?: string;
   createdAt: Date;

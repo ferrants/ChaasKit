@@ -7,6 +7,7 @@ import type { NativeTool, NativeToolForAgent, NativeCredentialConfig, ResolvedCr
 import { webScrapeTool } from './web-scrape.js';
 import { getPlanUsageTool } from './get-plan-usage.js';
 import { documentTools } from './documents.js';
+import { delegateToAgentTool } from './delegate-to-agent.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -21,6 +22,7 @@ const nativeToolRegistry = new Map<string, NativeTool>();
 // Register built-in native tools
 nativeToolRegistry.set('web-scrape', webScrapeTool);
 nativeToolRegistry.set('get-plan-usage', getPlanUsageTool);
+nativeToolRegistry.set('delegate_to_agent', delegateToAgentTool);
 
 // Register document tools
 for (const tool of documentTools) {
