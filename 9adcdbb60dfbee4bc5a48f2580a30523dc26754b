@@ -1,0 +1,62 @@
+packages/server/src/tools/index.ts
+  7c9eec6cd916ccbc 10,25
+packages/server/src/api/chat.ts
+  7c9eec6cd916ccbc 7,15,336-337,339-343,349-354,356
+packages/client/src/pages/ChatPage.tsx
+  7c9eec6cd916ccbc 3,13,35,47,52-54,189-204,206,211,256-257,263-266,270-271,376
+packages/client/src/components/Sidebar.tsx
+  7c9eec6cd916ccbc 24-26,79,81,283-298,305,315-326,332-352,362-365,370-382,386-411,413-414
+packages/server/src/tools/delegate-to-agent.ts
+  7c9eec6cd916ccbc 1-61
+packages/shared/src/types/thread.ts
+  7c9eec6cd916ccbc 3-4,13,29
+packages/server/src/services/agentic-loop.ts
+  7c9eec6cd916ccbc 1-624
+packages/client/src/stores/chatStore.ts
+  7c9eec6cd916ccbc 35-49,60-62,90,107-109,378-383,494-631,698,704,831-860
+examples/demo/config/app.config.ts
+  7c9eec6cd916ccbc 53,56,59-74
+examples/demo/prisma/schema/base.prisma
+  7c9eec6cd916ccbc 98-100
+packages/db/prisma/schema/base.prisma
+  7c9eec6cd916ccbc 98-100
+packages/client/src/components/SubAgentActivity.tsx
+  7c9eec6cd916ccbc 1-153
+packages/create-chaaskit/src/templates/prisma/schema/base.prisma
+  7c9eec6cd916ccbc 98-100
+packages/server/src/api/threads.ts
+  7c9eec6cd916ccbc 95,119
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.4",
+  "base_commit_sha": "9adcdbb60dfbee4bc5a48f2580a30523dc26754b",
+  "prompts": {
+    "7c9eec6cd916ccbc": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "215fb211-7b5c-43f0-ba9a-5c477c4f282b",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Matt Ferrante <matt@heyferrante.com>",
+      "messages": [],
+      "total_additions": 1269,
+      "total_deletions": 442,
+      "accepted_lines": 1225,
+      "overriden_lines": 0
+    },
+    "9f7dc8fa617e8684": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fb9f7c90-0822-4714-876c-658c56b1e5af",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Matt Ferrante <matt@heyferrante.com>",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 20,
+      "overriden_lines": 0
+    }
+  }
+}
