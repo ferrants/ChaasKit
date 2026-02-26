@@ -81,6 +81,7 @@ mcpServerRouter.post('/', mcpServerAuth, async (req: Request, res: Response) => 
   const context = {
     userId: req.mcpContext?.userId,
     teamId: req.mcpContext?.teamId,
+    scopes: req.mcpContext?.scopes,
   };
 
   const response = await handleMCPRequest(parsed, context);

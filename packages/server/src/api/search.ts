@@ -60,6 +60,16 @@ searchRouter.get('/', requireAuth, async (req, res, next) => {
 
     const total = Number(countResult[0]?.count || 0);
 
+    // Escape HTML to prevent XSS when rendering highlights
+    const escapeHtml = (value: string): string => {
+      return value
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    };
+
     // Generate simple highlights by finding the search term in content
     const highlightText = (text: string, query: string): string => {
       const maxLength = 150;
@@ -68,7 +78,8 @@ searchRouter.get('/', requireAuth, async (req, res, next) => {
       const index = lowerText.indexOf(lowerQuery);
 
       if (index === -1) {
-        return text.slice(0, maxLength) + (text.length > maxLength ? '...' : '');
+        const snippet = text.slice(0, maxLength) + (text.length > maxLength ? '...' : '');
+        return escapeHtml(snippet);
       }
 
       const start = Math.max(0, index - 50);
@@ -78,9 +89,11 @@ searchRouter.get('/', requireAuth, async (req, res, next) => {
       if (start > 0) snippet = '...' + snippet;
       if (end < text.length) snippet = snippet + '...';
 
-      // Wrap match in <mark> tags
-      const regex = new RegExp(`(${query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
-      return snippet.replace(regex, '<mark>$1</mark>');
+      // Wrap match in <mark> tags (escape snippet first)
+      const escapedSnippet = escapeHtml(snippet);
+      const escapedQuery = escapeHtml(query);
+      const regex = new RegExp(`(${escapedQuery.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
+      return escapedSnippet.replace(regex, '<mark>$1</mark>');
     };
 
     res.json({

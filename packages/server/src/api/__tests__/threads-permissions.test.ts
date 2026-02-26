@@ -133,6 +133,7 @@ test('team member can fetch team thread; outsider cannot', async () => {
       userId: owner.userId,
       teamId,
       agentId: 'default',
+      visibility: 'shared',
     },
   });
 

@@ -33,6 +33,8 @@ export interface ToolCall {
   toolName: string;
   arguments: Record<string, unknown>;
   status: 'pending' | 'approved' | 'rejected' | 'completed' | 'error';
+  displayName?: string;
+  subThreadId?: string;
 }
 
 export interface UIResource {

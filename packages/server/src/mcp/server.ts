@@ -50,6 +50,7 @@ const MCP_ERRORS = {
 export interface MCPServerContext {
   userId?: string;
   teamId?: string;
+  scopes?: string[];
 }
 
 /**
@@ -300,6 +301,17 @@ async function handleToolsCall(
   const toolName = params.name;
   const args = (params.arguments as Record<string, unknown>) || {};
 
+  if (!hasScope(context.scopes, 'mcp:tools')) {
+    return {
+      jsonrpc: '2.0',
+      id: id ?? null,
+      error: {
+        code: MCP_ERRORS.INVALID_PARAMS,
+        message: 'Insufficient scope: mcp:tools required',
+      },
+    };
+  }
+
   // Check if tool is exposed
   const exposedTools = getExposedTools();
   const tool = exposedTools.find((t) => t.name === toolName);
@@ -371,6 +383,17 @@ async function handleResourcesRead(
     };
   }
 
+  if (!hasScope(context.scopes, 'mcp:resources')) {
+    return {
+      jsonrpc: '2.0',
+      id: id ?? null,
+      error: {
+        code: MCP_ERRORS.INVALID_PARAMS,
+        message: 'Insufficient scope: mcp:resources required',
+      },
+    };
+  }
+
   const uri = params.uri;
   const result = await readMCPResource(uri, context);
 
@@ -403,6 +426,13 @@ async function handleResourcesRead(
       ],
     },
   };
+}
+
+function hasScope(scopes: string[] | undefined, required: string): boolean {
+  if (!scopes || scopes.length === 0) {
+    return true; // API keys or tokens without scopes default to full access
+  }
+  return scopes.includes(required);
 }
 
 /**

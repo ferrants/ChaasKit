@@ -92,6 +92,22 @@ class PendingConfirmationManager {
     console.log(`[PendingConfirmation] Resolved: ${id} approved=${approved} scope=${scope}`);
     confirmation.resolve({ approved, scope });
     this.pending.delete(id);
+
+    // When approved with broader scope, auto-resolve other pending confirmations
+    // for the same tool. This handles parallel sub-agents that both request
+    // confirmation for the same tool simultaneously.
+    if (approved && (scope === 'thread' || scope === 'always')) {
+      const toolId = `${confirmation.serverId}:${confirmation.toolName}`;
+      for (const [otherId, other] of this.pending.entries()) {
+        const otherToolId = `${other.serverId}:${other.toolName}`;
+        if (otherToolId === toolId && other.userId === confirmation.userId) {
+          console.log(`[PendingConfirmation] Auto-resolved: ${otherId} (same tool ${toolId}, scope=${scope})`);
+          other.resolve({ approved: true, scope });
+          this.pending.delete(otherId);
+        }
+      }
+    }
+
     return true;
   }
 

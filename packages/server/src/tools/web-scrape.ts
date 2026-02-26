@@ -1,4 +1,6 @@
 import type { NativeTool, ToolResult, ToolContext } from './types.js';
+import { promises as dns } from 'dns';
+import net from 'net';
 
 /**
  * Converts HTML to plain text by stripping tags and normalizing whitespace
@@ -45,6 +47,66 @@ function truncateText(text: string, maxLength: number): string {
   return truncated + '...';
 }
 
+function isPrivateIpv4(ip: string): boolean {
+  const parts = ip.split('.').map((part) => Number(part));
+  if (parts.length !== 4 || parts.some((n) => Number.isNaN(n))) return false;
+  const [a, b] = parts;
+
+  if (a === 10) return true;
+  if (a === 127) return true;
+  if (a === 0) return true;
+  if (a === 169 && b === 254) return true;
+  if (a === 172 && b >= 16 && b <= 31) return true;
+  if (a === 192 && b === 168) return true;
+  return false;
+}
+
+function isPrivateIpv6(ip: string): boolean {
+  const normalized = ip.toLowerCase();
+  if (normalized === '::1') return true;
+  if (normalized.startsWith('fe80:')) return true; // link-local
+  if (normalized.startsWith('fc') || normalized.startsWith('fd')) return true; // unique local
+  return false;
+}
+
+async function isBlockedHost(hostname: string): Promise<boolean> {
+  const lower = hostname.toLowerCase();
+  const blockedHostnames = new Set([
+    'localhost',
+    'localhost.localdomain',
+    'metadata.google.internal',
+  ]);
+
+  if (blockedHostnames.has(lower)) {
+    return true;
+  }
+
+  const ipVersion = net.isIP(hostname);
+  if (ipVersion === 4 && isPrivateIpv4(hostname)) {
+    return true;
+  }
+  if (ipVersion === 6 && isPrivateIpv6(hostname)) {
+    return true;
+  }
+
+  // Resolve DNS and block if any result is private
+  try {
+    const results = await dns.lookup(hostname, { all: true });
+    for (const result of results) {
+      if (result.family === 4 && isPrivateIpv4(result.address)) {
+        return true;
+      }
+      if (result.family === 6 && isPrivateIpv6(result.address)) {
+        return true;
+      }
+    }
+  } catch {
+    return true;
+  }
+
+  return false;
+}
+
 export const webScrapeTool: NativeTool = {
   name: 'web-scrape',
 
@@ -89,6 +151,13 @@ export const webScrapeTool: NativeTool = {
       };
     }
 
+    if (await isBlockedHost(parsedUrl.hostname)) {
+      return {
+        content: [{ type: 'text', text: 'Blocked URL: host is not allowed.' }],
+        isError: true,
+      };
+    }
+
     try {
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 30000); // 30 second timeout
@@ -103,6 +172,15 @@ export const webScrapeTool: NativeTool = {
       });
 
       clearTimeout(timeout);
+
+      // Block if final URL resolves to a disallowed host
+      const finalUrl = new URL(response.url);
+      if (await isBlockedHost(finalUrl.hostname)) {
+        return {
+          content: [{ type: 'text', text: 'Blocked URL: redirect target is not allowed.' }],
+          isError: true,
+        };
+      }
 
       if (!response.ok) {
         return {

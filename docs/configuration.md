@@ -467,9 +467,12 @@ mcp: {
     },
   ],
   allowUserServers: true,
-  requireToolConfirmation: true,
+  toolConfirmation: {
+    mode: 'all',
+  },
   toolTimeout: 30000,
   showToolCalls: true,  // Set to false to hide tool execution cards
+  logToolDetails: false,  // Set to true to log full tool args/results
 }
 ```
 
@@ -741,7 +744,7 @@ Shared threads are viewable at `/shared/:shareId`. The page displays:
 
 When `scope: 'team'`:
 - Viewers must be authenticated
-- Viewers must share at least one team with the thread owner
+- Viewers must be a member of the thread's team
 - Unauthenticated users see "Please sign in to view this shared conversation"
 - Users without team access see "You don't have access to this conversation"
 

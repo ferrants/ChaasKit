@@ -369,6 +369,8 @@ chatRouter.post('/', optionalAuth, optionalVerifiedEmail, async (req, res, next)
             toolName: tc.name,
             arguments: tc.input,
             status: tc.isError ? 'error' : 'completed',
+            ...(tc.displayName ? { displayName: tc.displayName } : {}),
+            ...(tc.subThreadId ? { subThreadId: tc.subThreadId } : {}),
           })))) : undefined,
           toolResults: toolCalls.length > 0
             ? JSON.parse(JSON.stringify(toolCalls.map((tc) => ({

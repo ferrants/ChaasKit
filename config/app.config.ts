@@ -315,6 +315,7 @@ export const config: AppConfig = {
     },
     toolTimeout: 30000,
     showToolCalls: true, // Set to false to hide tool execution cards in chat
+    logToolDetails: false, // Set to true to log full tool args/results (not recommended in prod)
   },
 
   sharing: {

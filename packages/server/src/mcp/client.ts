@@ -7,10 +7,13 @@ import { db } from '@chaaskit/db';
 import type { MCPServerConfig, MCPTool, MCPToolResponse, MCPContentItem } from '@chaaskit/shared';
 import {
   decryptCredential,
+  encryptCredential,
   type ApiKeyCredentialData,
   type OAuthCredentialData,
   isTokenExpired,
 } from '../services/encryption.js';
+import { getConfig } from '../config/loader.js';
+import { discoverOAuthConfig } from '../services/oauth-discovery.js';
 
 type AnyTransport = StdioClientTransport | SSEClientTransport | StreamableHTTPClientTransport;
 
@@ -20,6 +23,45 @@ interface ManagedClient {
   transport: AnyTransport;
   childProcess?: ChildProcess;
   lastUsed: number;
+}
+
+function redactSensitive(value: unknown): unknown {
+  const REDACT_KEYS = [
+    'secret',
+    'token',
+    'password',
+    'apiKey',
+    'apikey',
+    'key',
+    'authorization',
+    'auth',
+  ];
+
+  const isRedactKey = (key: string): boolean =>
+    REDACT_KEYS.some((needle) => key.toLowerCase().includes(needle));
+
+  const redact = (input: unknown): unknown => {
+    if (Array.isArray(input)) {
+      return input.map(redact);
+    }
+    if (input && typeof input === 'object') {
+      const result: Record<string, unknown> = {};
+      for (const [key, val] of Object.entries(input)) {
+        if (isRedactKey(key)) {
+          result[key] = '[REDACTED]';
+        } else {
+          result[key] = redact(val);
+        }
+      }
+      return result;
+    }
+    if (typeof input === 'string') {
+      return input.length > 200 ? `${input.slice(0, 200)}...` : input;
+    }
+    return input;
+  };
+
+  return redact(value);
 }
 
 // Cache expiration for user clients (5 minutes)
@@ -321,8 +363,11 @@ class MCPClientManager {
     toolName: string,
     args: Record<string, unknown>
   ): Promise<MCPToolResponse> {
+    const logDetails = getConfig().mcp?.logToolDetails === true;
     console.log(`[MCP] Executing tool: ${toolName} on server ${serverId}`);
-    console.log(`[MCP]   Arguments: ${JSON.stringify(args)}`);
+    if (logDetails) {
+      console.log(`[MCP]   Arguments: ${JSON.stringify(redactSensitive(args))}`);
+    }
 
     try {
       const startTime = Date.now();
@@ -343,13 +388,15 @@ class MCPClientManager {
       });
 
       console.log(`[MCP] Tool ${toolName} completed in ${duration}ms, isError=${result.isError === true}`);
-      console.log(`[MCP] Full tool response:`, JSON.stringify(result, null, 2));
-      console.log(`[MCP] Tool response content:`);
-      for (const item of content) {
-        if (item.type === 'text') {
-          console.log(`[MCP]   ${item.text}`);
-        } else if (item.type === 'image') {
-          console.log(`[MCP]   [Image: ${item.mimeType}]`);
+      if (logDetails) {
+        console.log(`[MCP] Full tool response:`, JSON.stringify(redactSensitive(result), null, 2));
+        console.log(`[MCP] Tool response content:`);
+        for (const item of content) {
+          if (item.type === 'text') {
+            console.log(`[MCP]   ${redactSensitive(item.text)}`);
+          } else if (item.type === 'image') {
+            console.log(`[MCP]   [Image: ${item.mimeType}]`);
+          }
         }
       }
 
@@ -449,7 +496,7 @@ class MCPClientManager {
 
   private async createUserClient(
     config: MCPServerConfig,
-    credential: { credentialType: string; encryptedData: string }
+    credential: { id: string; credentialType: string; encryptedData: string }
   ): Promise<ManagedClient> {
     if (config.transport !== 'streamable-http') {
       throw new Error('User credentials only supported for streamable-http transport');
@@ -465,12 +512,15 @@ class MCPClientManager {
       const data = decryptCredential<ApiKeyCredentialData>(credential.encryptedData);
       authHeader = `Bearer ${data.apiKey}`;
     } else if (credential.credentialType === 'oauth') {
-      const data = decryptCredential<OAuthCredentialData>(credential.encryptedData);
+      let data = decryptCredential<OAuthCredentialData>(credential.encryptedData);
 
-      // Check if token is expired
+      // Refresh token if expired
       if (isTokenExpired(data.expiresAt)) {
-        // TODO: Implement token refresh
-        throw new Error('OAuth token expired - please re-authenticate');
+        if (!data.refreshToken) {
+          throw new Error('OAuth token expired - please re-authenticate');
+        }
+
+        data = await this.refreshOAuthToken(config, data, credential.id);
       }
 
       authHeader = `${data.tokenType || 'Bearer'} ${data.accessToken}`;
@@ -518,6 +568,69 @@ class MCPClientManager {
       transport,
       lastUsed: Date.now(),
     };
+  }
+
+  private async refreshOAuthToken(
+    config: MCPServerConfig,
+    data: OAuthCredentialData,
+    credentialId: string
+  ): Promise<OAuthCredentialData> {
+    const oauthConfig = await discoverOAuthConfig(config);
+    if (!oauthConfig) {
+      throw new Error('OAuth discovery failed - please re-authenticate');
+    }
+
+    const params: Record<string, string> = {
+      grant_type: 'refresh_token',
+      refresh_token: data.refreshToken || '',
+      client_id: oauthConfig.clientId,
+    };
+
+    if (oauthConfig.clientSecret) {
+      params.client_secret = oauthConfig.clientSecret;
+    }
+
+    const response = await fetch(oauthConfig.tokenEndpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        Accept: 'application/json',
+      },
+      body: new URLSearchParams(params),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`OAuth token refresh failed: ${errorText}`);
+    }
+
+    const tokenData = await response.json() as {
+      access_token: string;
+      refresh_token?: string;
+      expires_in?: number;
+      token_type?: string;
+    };
+
+    const expiresAt = tokenData.expires_in
+      ? Math.floor(Date.now() / 1000) + tokenData.expires_in
+      : data.expiresAt;
+
+    const updated: OAuthCredentialData = {
+      accessToken: tokenData.access_token,
+      refreshToken: tokenData.refresh_token || data.refreshToken,
+      expiresAt,
+      tokenType: tokenData.token_type || data.tokenType || 'Bearer',
+    };
+
+    await db.mCPCredential.update({
+      where: { id: credentialId },
+      data: {
+        encryptedData: encryptCredential(updated),
+        updatedAt: new Date(),
+      },
+    });
+
+    return updated;
   }
 
   private async createStdioClient(config: MCPServerConfig): Promise<ManagedClient> {

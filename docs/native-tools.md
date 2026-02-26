@@ -928,7 +928,7 @@ See [MCP Integration > MCP Server Export](./mcp.md#mcp-server-export) for full d
 ## Security Considerations
 
 - Native tools run with server privileges - be careful about what capabilities you expose
-- Validate URLs to prevent SSRF attacks (e.g., block internal IPs)
+- Validate URLs to prevent SSRF attacks (e.g., block internal IPs). The built-in `web-scrape` tool blocks private and link-local hosts.
 - Sanitize file paths if your tool accesses the filesystem
 - Consider rate limiting to prevent abuse
 - Use the `context.userId` to implement per-user restrictions if needed

@@ -12,6 +12,7 @@ Most endpoints require authentication via:
 ## Rate Limiting
 
 Global rate limit: 1000 requests per 15 minutes per IP (configurable in `app.config.ts`).
+Auth endpoints are additionally rate-limited to reduce brute-force attempts.
 
 ---
 
@@ -145,6 +146,8 @@ The chat endpoint returns Server-Sent Events:
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
 | GET | `/` | Yes | Search threads and messages (query: `q`, `teamId`) |
+
+Search results include a `highlight` field with HTML `<mark>` tags for matched text. The content is sanitized for safe rendering.
 
 ---
 

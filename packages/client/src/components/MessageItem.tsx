@@ -9,6 +9,7 @@ import { useAppPath } from '../hooks/useAppPath';
 import { useExtensionTools } from '../extensions/useExtensions';
 import MarkdownRenderer from './content/MarkdownRenderer';
 import ToolCallDisplay, { UIResourceWidget } from './ToolCallDisplay';
+import DelegationIndicator from './DelegationIndicator';
 import BranchModal from './BranchModal';
 import { MessageContentWithMentions } from './MentionChip';
 
@@ -191,13 +192,53 @@ export default function MessageItem({ message, isStreaming, messageIndex = 0, pr
     );
   }
 
+  // Split delegation vs regular tool calls
+  const delegationToolCalls = toolCallsWithResults.filter(
+    ({ toolCall }) => toolCall.toolName === 'delegate_to_agent'
+  );
+  const regularToolCalls = toolCallsWithResults.filter(
+    ({ toolCall }) => toolCall.toolName !== 'delegate_to_agent'
+  );
+
   // Assistant messages: Tool calls → UI widgets → Text response
   return (
     <div className="animate-fade-in space-y-3">
-      {/* 1. Tool Execution Cards (outside bubble) */}
-      {showToolCalls && toolCallsWithResults.length > 0 && (
+      {/* 1a. Delegation Indicators */}
+      {delegationToolCalls.length > 0 && (
         <div className="space-y-2">
-          {toolCallsWithResults.map(({ toolCall, toolResult }) => (
+          {delegationToolCalls.map(({ toolCall }) => {
+            let agentName = 'Sub-Agent';
+            let task = '';
+            if (toolCall.displayName) {
+              const colonIdx = toolCall.displayName.indexOf(':');
+              if (colonIdx !== -1) {
+                agentName = toolCall.displayName.slice(0, colonIdx).trim();
+                task = toolCall.displayName.slice(colonIdx + 1).trim();
+              } else {
+                agentName = toolCall.displayName;
+              }
+            } else {
+              const args = toolCall.arguments as { agentId?: string; prompt?: string };
+              agentName = args.agentId || 'Sub-Agent';
+              task = args.prompt ? (args.prompt.length > 60 ? args.prompt.slice(0, 60) + '...' : args.prompt) : '';
+            }
+            return (
+              <DelegationIndicator
+                key={toolCall.id}
+                agentName={agentName}
+                task={task}
+                status={toolCall.status === 'error' ? 'error' : 'done'}
+                subThreadId={toolCall.subThreadId}
+              />
+            );
+          })}
+        </div>
+      )}
+
+      {/* 1b. Regular Tool Execution Cards (outside bubble) */}
+      {showToolCalls && regularToolCalls.length > 0 && (
+        <div className="space-y-2">
+          {regularToolCalls.map(({ toolCall, toolResult }) => (
             <ToolCallDisplay
               key={toolCall.id}
               toolCall={toolCall}
@@ -241,9 +282,9 @@ export default function MessageItem({ message, isStreaming, messageIndex = 0, pr
           </div>
 
           {/* Message Content */}
-          <div className="flex max-w-[85%] flex-col sm:max-w-[80%] items-start">
-            <div className="rounded-lg px-3 py-2 sm:px-3 sm:py-2 bg-assistant-message-bg text-assistant-message-text">
-              <div className="markdown-content text-sm">
+          <div className="flex max-w-[85%] flex-col sm:max-w-[80%] items-start min-w-0">
+            <div className="rounded-lg px-3 py-2 sm:px-3 sm:py-2 bg-assistant-message-bg text-assistant-message-text max-w-full overflow-hidden">
+              <div className="markdown-content text-sm overflow-x-auto">
                 <MarkdownRenderer content={message.content} />
                 {isStreaming && (
                   <span className="typing-indicator ml-1">

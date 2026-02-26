@@ -100,6 +100,7 @@ mcp: {
   },
   toolTimeout: 30000,
   showToolCalls: true, // Set to false to hide tool execution cards in chat
+  logToolDetails: false, // Set to true to log full tool args/results (avoid in prod)
 }
 ```
 
@@ -137,6 +138,7 @@ mcp: {
 | `toolConfirmation` | Tool confirmation settings (see below) |
 | `toolTimeout` | Timeout for tool calls in milliseconds |
 | `showToolCalls` | Show tool execution cards in chat (default: true) |
+| `logToolDetails` | Log full tool args/results (default: false; avoid in production) |
 
 ### Tool Confirmation Configuration
 
@@ -507,6 +509,8 @@ Limited to 10 iterations to prevent infinite loops.
 ## Tool Confirmation
 
 The tool confirmation system gives users control over which tools can execute automatically and which require explicit approval.
+
+**Note**: Tool execution is available only for authenticated users. Unauthenticated sessions do not receive tool access.
 
 ### Confirmation Modes
 
@@ -995,6 +999,7 @@ Full OAuth 2.1 with PKCE support for MCP clients. Compliant with:
 - RFC 8414 (OAuth Authorization Server Metadata)
 - RFC 9728 (OAuth Protected Resource Metadata)
 - RFC 7591 (Dynamic Client Registration)
+- **Scope enforcement**: tokens must include `mcp:tools` to call tools and `mcp:resources` to read resources
 
 #### 2. API Keys
 

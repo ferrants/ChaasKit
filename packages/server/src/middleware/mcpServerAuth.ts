@@ -21,6 +21,7 @@ declare global {
       mcpContext?: {
         userId: string;
         teamId?: string;
+        scopes?: string[];
       };
     }
   }
@@ -103,7 +104,7 @@ async function validateApiKey(
  */
 async function validateOAuthToken(
   token: string
-): Promise<{ userId: string; teamId?: string } | null> {
+): Promise<{ userId: string; teamId?: string; scopes?: string[] } | null> {
   // Hash the token to look it up
   const crypto = await import('crypto');
   const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
@@ -115,6 +116,7 @@ async function validateOAuthToken(
       userId: true,
       expiresAt: true,
       revokedAt: true,
+      scope: true,
       client: {
         select: {
           isActive: true,
@@ -144,6 +146,7 @@ async function validateOAuthToken(
 
   return {
     userId: oauthToken.userId,
+    scopes: oauthToken.scope ? oauthToken.scope.split(' ').filter(Boolean) : undefined,
   };
 }
 

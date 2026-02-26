@@ -10,7 +10,6 @@ import MessageList from '../components/MessageList';
 import ToolConfirmationModal from '../components/ToolConfirmationModal';
 import AgentSelector from '../components/AgentSelector';
 import MentionInput, { type MentionInputHandle } from '../components/MentionInput';
-import SubAgentActivity from '../components/SubAgentActivity';
 
 export default function ChatPage() {
   const { threadId } = useParams();
@@ -39,6 +38,7 @@ export default function ChatPage() {
     sendMessage,
     clearCurrentThread,
     confirmTool,
+    confirmSubThreadTool,
     loadAgents,
     setNewThreadVisibility,
     updateThreadVisibility,
@@ -253,17 +253,12 @@ export default function ChatPage() {
             </div>
           </div>
         ) : (
-          <>
-            <MessageList
-              messages={currentThread.messages}
-              streamingContent={isStreaming ? streamingContent : undefined}
-              pendingToolCalls={isStreaming ? pendingToolCalls : undefined}
-              completedToolCalls={isStreaming ? completedToolCalls : undefined}
-            />
-            {isStreaming && Object.keys(activeSubThreads).length > 0 && (
-              <SubAgentActivity />
-            )}
-          </>
+          <MessageList
+            messages={currentThread.messages}
+            streamingContent={isStreaming ? streamingContent : undefined}
+            pendingToolCalls={isStreaming ? pendingToolCalls : undefined}
+            completedToolCalls={isStreaming ? completedToolCalls : undefined}
+          />
         )}
       </div>
 
@@ -378,12 +373,33 @@ export default function ChatPage() {
       {/* Tool Confirmation Modal */}
       {pendingConfirmation && (
         <ToolConfirmationModal
+          key={pendingConfirmation.confirmationId}
           confirmation={pendingConfirmation}
           onConfirm={(approved, scope) => {
             confirmTool(pendingConfirmation.confirmationId, approved, scope);
           }}
         />
       )}
+
+      {/* Sub-agent Tool Confirmation Modal */}
+      {(() => {
+        const subWithConfirmation = Object.values(activeSubThreads).find((s) => s.pendingConfirmation);
+        if (!subWithConfirmation?.pendingConfirmation) return null;
+        return (
+          <ToolConfirmationModal
+            key={subWithConfirmation.pendingConfirmation.confirmationId}
+            confirmation={subWithConfirmation.pendingConfirmation}
+            onConfirm={(approved, scope) => {
+              confirmSubThreadTool(
+                subWithConfirmation.id,
+                subWithConfirmation.pendingConfirmation!.confirmationId,
+                approved,
+                scope
+              );
+            }}
+          />
+        );
+      })()}
     </div>
   );
 }

@@ -13,6 +13,7 @@ interface PendingToolCall {
   name: string;
   serverId: string;
   input: Record<string, unknown>;
+  displayName?: string;
 }
 
 interface CompletedToolCall extends PendingToolCall {
@@ -21,6 +22,7 @@ interface CompletedToolCall extends PendingToolCall {
   uiResource?: UIResource;
   structuredContent?: Record<string, unknown>;
   autoApproveReason?: AutoApproveReason;
+  subThreadId?: string;
 }
 
 export interface PendingToolConfirmation {
@@ -146,7 +148,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   loadThread: async (threadId: string) => {
     const response = await api.get<{ thread: Thread }>(`/api/threads/${threadId}`);
-    set({ currentThread: response.thread });
+    set({ currentThread: response.thread, activeSubThreads: {} });
   },
 
   createThread: async (agentId?: string, teamId?: string | null, projectId?: string | null) => {
@@ -294,6 +296,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       streamingContent: '',
       pendingToolCalls: [],
       completedToolCalls: [],
+      activeSubThreads: {},
     }));
 
     try {
@@ -330,15 +333,22 @@ export const useChatStore = create<ChatState>((set, get) => ({
       let fullContent = '';
       let threadId = currentThread?.id;
       let messageId = '';
+      let sseBuffer = ''; // Buffer for incomplete SSE messages
 
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
 
-        const text = decoder.decode(value);
-        const lines = text.split('\n');
+        const text = decoder.decode(value, { stream: true });
+        sseBuffer += text;
 
-        for (const line of lines) {
+        // Split on double newline (SSE message boundary)
+        const messages = sseBuffer.split('\n\n');
+        // Keep the last part as it may be incomplete
+        sseBuffer = messages.pop() || '';
+
+        for (const message of messages) {
+          const line = message.trim();
           if (line.startsWith('data: ')) {
             try {
               const rawData = line.slice(6);
@@ -358,6 +368,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
                 name?: string;
                 serverId?: string;
                 input?: Record<string, unknown>;
+                displayName?: string;
                 isError?: boolean;
                 uiResource?: UIResource;
                 structuredContent?: Record<string, unknown>;
@@ -374,6 +385,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
                   input: Record<string, unknown>;
                   result: MCPContent[];
                   isError?: boolean;
+                  displayName?: string;
+                  subThreadId?: string;
                 }>;
                 // Sub-thread fields
                 subThreadId?: string;
@@ -423,6 +436,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
                       name: data.name!,
                       serverId: data.serverId!,
                       input: data.input || {},
+                      ...(data.displayName ? { displayName: data.displayName } : {}),
                     },
                   ],
                 }));
@@ -631,10 +645,39 @@ export const useChatStore = create<ChatState>((set, get) => ({
                 });
               } else if (data.type === 'done') {
                 messageId = data.messageId || '';
-                // Note: We don't overwrite completedToolCalls here because
-                // the tool_result events already include uiResource which
-                // the done event's toolCalls don't have
                 console.log('[Chat] Stream done, messageId:', messageId);
+                // Move any remaining pending delegation calls to completed
+                // using data from the done event's toolCalls
+                if (data.toolCalls && data.toolCalls.length > 0) {
+                  set((state) => {
+                    const pendingDelegations = state.pendingToolCalls.filter(
+                      (tc) => tc.name === 'delegate_to_agent'
+                    );
+                    if (pendingDelegations.length === 0) return state;
+
+                    const doneToolMap = new Map(
+                      (data.toolCalls || []).map((tc: { id: string; name: string; serverId: string; input: Record<string, unknown>; result: MCPContent[]; isError?: boolean; displayName?: string; subThreadId?: string }) => [tc.id, tc])
+                    );
+
+                    const newCompleted: CompletedToolCall[] = [];
+                    for (const pending of pendingDelegations) {
+                      const doneTool = doneToolMap.get(pending.id);
+                      newCompleted.push({
+                        ...pending,
+                        result: doneTool?.result || [{ type: 'text' as const, text: 'Delegation completed' }],
+                        isError: doneTool?.isError,
+                        subThreadId: doneTool?.subThreadId,
+                      });
+                    }
+
+                    return {
+                      pendingToolCalls: state.pendingToolCalls.filter(
+                        (tc) => tc.name !== 'delegate_to_agent'
+                      ),
+                      completedToolCalls: [...state.completedToolCalls, ...newCompleted],
+                    };
+                  });
+                }
               } else if (data.type === 'error') {
                 console.error('[Chat] Stream error:', data.error);
                 throw new Error(data.error || 'Unknown error');
@@ -667,6 +710,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
               toolName: tc.name,
               arguments: tc.input,
               status: tc.isError ? 'error' as const : 'completed' as const,
+              ...(tc.displayName ? { displayName: tc.displayName } : {}),
+              ...(tc.subThreadId ? { subThreadId: tc.subThreadId } : {}),
             }))
           : undefined,
         toolResults: completedToolCalls.length > 0
@@ -695,13 +740,12 @@ export const useChatStore = create<ChatState>((set, get) => ({
         pendingToolCalls: [],
         completedToolCalls: [],
         pendingConfirmation: null,
-        activeSubThreads: {},
       }));
 
       // Refresh thread list to update previews
       get().loadThreads();
     } catch (error) {
-      set({ isStreaming: false, streamingContent: '', pendingConfirmation: null, activeSubThreads: {} });
+      set({ isStreaming: false, streamingContent: '', pendingConfirmation: null });
       throw error;
     }
   },
@@ -727,15 +771,20 @@ export const useChatStore = create<ChatState>((set, get) => ({
       }
 
       let fullContent = '';
+      let regenBuffer = '';
 
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
 
-        const text = decoder.decode(value);
-        const lines = text.split('\n');
+        const text = decoder.decode(value, { stream: true });
+        regenBuffer += text;
 
-        for (const line of lines) {
+        const messages = regenBuffer.split('\n\n');
+        regenBuffer = messages.pop() || '';
+
+        for (const message of messages) {
+          const line = message.trim();
           if (line.startsWith('data: ')) {
             try {
               const data: StreamingMessage = JSON.parse(line.slice(6));
@@ -800,7 +849,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
 
   clearCurrentThread: () => {
-    set({ currentThread: null });
+    set({ currentThread: null, activeSubThreads: {} });
   },
 
   confirmTool: async (confirmationId: string, approved: boolean, scope?: ConfirmationScope) => {

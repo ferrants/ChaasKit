@@ -132,6 +132,7 @@ export interface MCPConfig {
   toolConfirmation?: ToolConfirmationConfig;
   toolTimeout: number;
   showToolCalls?: boolean; // Show tool execution cards in chat (default: true)
+  logToolDetails?: boolean; // Log full tool args/results (default: false)
   /** Expose this app as an MCP server for external clients */
   server?: MCPServerExportConfig;
 }

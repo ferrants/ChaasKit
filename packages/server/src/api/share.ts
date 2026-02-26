@@ -123,24 +123,21 @@ shareRouter.get('/view/:shareId', optionalAuth, async (req, res, next) => {
         throw new AppError(HTTP_STATUS.UNAUTHORIZED, 'Authentication required to view this shared thread');
       }
 
-      // Get the viewer's team IDs
-      const viewerTeams = await db.teamMember.findMany({
-        where: { userId: req.user.id },
-        select: { teamId: true },
-      });
-      const viewerTeamIds = new Set(viewerTeams.map((t) => t.teamId));
-
-      // Get the thread owner's team IDs
-      const ownerTeamIds = shared.thread.user?.teamMemberships.map((t) => t.teamId) || [];
-
-      // Check if viewer shares a team with the owner
-      const hasSharedTeam = ownerTeamIds.some((teamId) => viewerTeamIds.has(teamId));
-
-      // Also allow the owner themselves to view
       const isOwner = req.user.id === shared.thread.userId;
+      const threadTeamId = shared.thread.teamId;
 
-      if (!hasSharedTeam && !isOwner) {
-        throw new AppError(HTTP_STATUS.FORBIDDEN, 'You must be a team member to view this shared thread');
+      if (!threadTeamId) {
+        if (!isOwner) {
+          throw new AppError(HTTP_STATUS.FORBIDDEN, 'You must be a team member to view this shared thread');
+        }
+      } else {
+        const membership = await db.teamMember.findFirst({
+          where: { userId: req.user.id, teamId: threadTeamId },
+        });
+
+        if (!membership && !isOwner) {
+          throw new AppError(HTTP_STATUS.FORBIDDEN, 'You must be a team member to view this shared thread');
+        }
       }
     }
 

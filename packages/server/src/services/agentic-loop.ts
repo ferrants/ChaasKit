@@ -27,6 +27,8 @@ interface ToolCallRecord {
   result: MCPContentItem[];
   isError?: boolean;
   structuredContent?: Record<string, unknown>;
+  displayName?: string;
+  subThreadId?: string;
   uiResource?: {
     uri: string;
     text?: string;
@@ -113,16 +115,20 @@ export async function runAgenticLoop(
   const agentConfig = agentDef ? toAgentConfig(agentDef) : config.agent;
   const agentService = createAgentService(agentConfig);
 
-  // Get available MCP tools
+  // Get available MCP tools (authenticated users only)
   const mcpServers = config.mcp?.servers || [];
-  const allMcpTools = await mcpManager.listAllToolsForUser(userId, mcpServers, teamId);
+  const allMcpTools = userId
+    ? await mcpManager.listAllToolsForUser(userId, mcpServers, teamId)
+    : [];
 
-  // Get native tools
-  const nativeTools = await getNativeToolsForAgentFiltered(agentId, { userId, teamId });
+  // Get native tools (authenticated users only)
+  const nativeTools = userId
+    ? await getNativeToolsForAgentFiltered(agentId, { userId, teamId })
+    : [];
 
   // Combine and filter
   let allTools: ToolWithServerId[] = [...allMcpTools, ...nativeTools];
-  let filteredTools = filterToolsForAgent(agentId, allTools);
+  let filteredTools = userId ? filterToolsForAgent(agentId, allTools) : [];
 
   // For sub-agents: remove delegate_to_agent to prevent recursive delegation
   if (excludeDelegation) {
@@ -166,11 +172,24 @@ export async function runAgenticLoop(
         fullContent += chunk.content;
         writeSSE(res, 'delta', { content: chunk.content }, subThreadId);
       } else if (chunk.type === 'tool_use' && chunk.toolUse) {
+        // For delegation calls, compute a human-readable displayName
+        let displayName: string | undefined;
+        if (chunk.toolUse.name === 'delegate_to_agent') {
+          const input = chunk.toolUse.input as { agentId?: string; prompt?: string };
+          const target = input.agentId ? getAgentById(input.agentId) : null;
+          const agentLabel = target?.name || input.agentId || 'Sub-Agent';
+          const promptPreview = input.prompt
+            ? (input.prompt.length > 60 ? input.prompt.slice(0, 60) + '...' : input.prompt)
+            : '';
+          displayName = `${agentLabel}: ${promptPreview}`;
+        }
+
         writeSSE(res, 'tool_use', {
           id: chunk.toolUse.id,
           name: chunk.toolUse.name,
           serverId: chunk.toolUse.serverId,
           input: chunk.toolUse.input,
+          ...(displayName ? { displayName } : {}),
         }, subThreadId);
 
         currentLoopToolCalls.push({
@@ -315,7 +334,7 @@ async function executeToolCall(
         isError: false,
       };
     } else {
-      if (confirmationResult.scope === 'thread') {
+      if (confirmationResult.scope === 'thread' || confirmationResult.scope === 'always') {
         ctx.threadAllowedTools.push(toolId);
       }
       toolResult = await executeToolRaw(toolCall, ctx);
@@ -557,6 +576,8 @@ async function executeDelegation(
           toolName: tc.name,
           arguments: tc.input,
           status: tc.isError ? 'error' : 'completed',
+          ...(tc.displayName ? { displayName: tc.displayName } : {}),
+          ...(tc.subThreadId ? { subThreadId: tc.subThreadId } : {}),
         })))) : undefined,
         toolResults: result.toolCalls.length > 0
           ? JSON.parse(JSON.stringify(result.toolCalls.map((tc) => ({
@@ -583,12 +604,16 @@ async function executeDelegation(
 
     // Return the sub-agent's content as the tool result
     const resultText = `Sub-agent "${targetAgent.name}" completed the task.\n\nResult:\n${result.fullContent}`;
+    const promptPreview = prompt.length > 60 ? prompt.slice(0, 60) + '...' : prompt;
+    const displayName = `${targetAgent.name}: ${promptPreview}`;
 
     return {
       record: {
         ...toolCall,
         result: [{ type: 'text', text: resultText }],
         isError: false,
+        displayName,
+        subThreadId: subThread.id,
       },
       resultBlock: {
         type: 'tool_result',
@@ -606,12 +631,16 @@ async function executeDelegation(
     }, subThread.id);
 
     const resultText = `Sub-agent "${targetAgent.name}" encountered an error: ${errorMsg}`;
+    const promptPreview = prompt.length > 60 ? prompt.slice(0, 60) + '...' : prompt;
+    const displayName = `${targetAgent.name}: ${promptPreview}`;
 
     return {
       record: {
         ...toolCall,
         result: [{ type: 'text', text: resultText }],
         isError: true,
+        displayName,
+        subThreadId: subThread.id,
       },
       resultBlock: {
         type: 'tool_result',

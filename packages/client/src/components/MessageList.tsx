@@ -4,14 +4,17 @@ import { Bot } from 'lucide-react';
 import { useTheme } from '../contexts/ThemeContext';
 import { useConfig } from '../contexts/ConfigContext';
 import { useExtensionTools } from '../extensions/useExtensions';
+import { useChatStore } from '../stores/chatStore';
 import MessageItem from './MessageItem';
 import ToolCallDisplay, { UIResourceWidget } from './ToolCallDisplay';
+import DelegationIndicator from './DelegationIndicator';
 
 interface PendingToolCall {
   id: string;
   name: string;
   serverId: string;
   input: Record<string, unknown>;
+  displayName?: string;
 }
 
 interface CompletedToolCall extends PendingToolCall {
@@ -19,6 +22,7 @@ interface CompletedToolCall extends PendingToolCall {
   isError?: boolean;
   uiResource?: UIResource;
   structuredContent?: Record<string, unknown>;
+  subThreadId?: string;
 }
 
 interface MessageListProps {
@@ -44,6 +48,15 @@ export default function MessageList({
     return map;
   }, [extensionTools]);
   const showToolCalls = config.mcp?.showToolCalls !== false;
+  const activeSubThreads = useChatStore((s) => s.activeSubThreads);
+
+  // Split delegation vs regular tool calls
+  const pendingDelegations = pendingToolCalls.filter((tc) => tc.name === 'delegate_to_agent');
+  const pendingRegular = pendingToolCalls.filter((tc) => tc.name !== 'delegate_to_agent');
+  const completedDelegations = completedToolCalls.filter((tc) => tc.name === 'delegate_to_agent');
+  const completedRegular = completedToolCalls.filter((tc) => tc.name !== 'delegate_to_agent');
+  const hasDelegations = pendingDelegations.length > 0 || completedDelegations.length > 0;
+  const hasRegularToolActivity = pendingRegular.length > 0 || completedRegular.length > 0;
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -51,6 +64,38 @@ export default function MessageList({
 
   const hasToolActivity = pendingToolCalls.length > 0 || completedToolCalls.length > 0;
   const isStreaming = Boolean(streamingContent) || hasToolActivity;
+
+  function getDelegationStatus(tc: PendingToolCall | CompletedToolCall): 'pending' | 'running' | 'done' | 'error' {
+    // Check if it's a completed tool call (has result)
+    if ('result' in tc) {
+      return (tc as CompletedToolCall).isError ? 'error' : 'done';
+    }
+    // Check activeSubThreads for status
+    const input = tc.input as { agentId?: string };
+    const sub = Object.values(activeSubThreads).find(
+      (s) => s.agentId === input.agentId
+    );
+    if (sub) return sub.status === 'error' ? 'error' : sub.status === 'done' ? 'done' : 'running';
+    return 'pending';
+  }
+
+  function parseDelegationDisplay(tc: PendingToolCall | CompletedToolCall): { agentName: string; task: string } {
+    if (tc.displayName) {
+      const colonIdx = tc.displayName.indexOf(':');
+      if (colonIdx !== -1) {
+        return {
+          agentName: tc.displayName.slice(0, colonIdx).trim(),
+          task: tc.displayName.slice(colonIdx + 1).trim(),
+        };
+      }
+      return { agentName: tc.displayName, task: '' };
+    }
+    const input = tc.input as { agentId?: string; prompt?: string };
+    return {
+      agentName: input.agentId || 'Sub-Agent',
+      task: input.prompt ? (input.prompt.length > 60 ? input.prompt.slice(0, 60) + '...' : input.prompt) : '',
+    };
+  }
 
   // Get UI resources from completed tool calls for separate rendering
   const renderedToolCalls = completedToolCalls
@@ -112,11 +157,39 @@ export default function MessageList({
         {/* Streaming message: Tool calls → UI widgets → Text response */}
         {isStreaming && (
           <div className="animate-fade-in space-y-3">
-            {/* 1. Tool Execution Cards (outside bubble) */}
-            {showToolCalls && hasToolActivity && (
+            {/* 1a. Delegation Indicators */}
+            {hasDelegations && (
               <div className="space-y-2">
-                {/* Completed tool calls */}
-                {completedToolCalls.map((call) => (
+                {completedDelegations.map((call) => {
+                  const { agentName, task } = parseDelegationDisplay(call);
+                  return (
+                    <DelegationIndicator
+                      key={call.id}
+                      agentName={agentName}
+                      task={task}
+                      status={getDelegationStatus(call)}
+                      subThreadId={call.subThreadId}
+                    />
+                  );
+                })}
+                {pendingDelegations.map((call) => {
+                  const { agentName, task } = parseDelegationDisplay(call);
+                  return (
+                    <DelegationIndicator
+                      key={call.id}
+                      agentName={agentName}
+                      task={task}
+                      status={getDelegationStatus(call)}
+                    />
+                  );
+                })}
+              </div>
+            )}
+
+            {/* 1b. Regular Tool Execution Cards (outside bubble) */}
+            {showToolCalls && hasRegularToolActivity && (
+              <div className="space-y-2">
+                {completedRegular.map((call) => (
                   <ToolCallDisplay
                     key={call.id}
                     toolCall={{
@@ -135,9 +208,7 @@ export default function MessageList({
                     hideUiResource
                   />
                 ))}
-
-                {/* Pending tool calls */}
-                {pendingToolCalls.map((call) => (
+                {pendingRegular.map((call) => (
                   <ToolCallDisplay
                     key={call.id}
                     toolCall={{
@@ -182,9 +253,9 @@ export default function MessageList({
                 </div>
 
                 {/* Content */}
-                <div className="flex max-w-[85%] flex-col sm:max-w-[80%] items-start">
-                  <div className="rounded-lg px-3 py-2 sm:px-3 sm:py-2 bg-assistant-message-bg text-assistant-message-text">
-                    <div className="markdown-content text-sm">
+                <div className="flex max-w-[85%] flex-col sm:max-w-[80%] items-start min-w-0">
+                  <div className="rounded-lg px-3 py-2 sm:px-3 sm:py-2 bg-assistant-message-bg text-assistant-message-text max-w-full overflow-hidden">
+                    <div className="markdown-content text-sm overflow-x-auto">
                       <span className="whitespace-pre-wrap">{streamingContent}</span>
                       <span className="typing-indicator ml-1">
                         <span className="inline-block h-2 w-2 rounded-full bg-current" />
