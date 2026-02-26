@@ -1,0 +1,82 @@
+packages/shared/src/types/message.ts
+  881354d889d76cc5 36-37
+packages/client/src/components/MessageItem.tsx
+  881354d889d76cc5 12,195-202,206-207,209-239,241,285-287
+packages/client/src/pages/ChatPage.tsx
+  7c9eec6cd916ccbc 376
+  881354d889d76cc5 41,383-402
+packages/client/src/stores/chatStore.ts
+  881354d889d76cc5 16,25,151,299,371,388-389,439,649-680,713-714,852
+  7c9eec6cd916ccbc 336,342-343,345-351,774,780-781,783-784,786-787
+packages/server/src/services/pendingConfirmation.ts
+  7c9eec6cd916ccbc 95-110
+packages/client/src/components/MessageList.tsx
+  881354d889d76cc5 7,10,17,25,51-59,68-99,160-161,163-190,192,211,256-258
+packages/server/src/services/agentic-loop.ts
+  ca6cf546ebc53094 118,120-122,124-127,131
+  881354d889d76cc5 30-31,175-186,192,579-580,607-608,615-616,634-635,642-643
+  7c9eec6cd916ccbc 337
+packages/server/src/api/chat.ts
+  881354d889d76cc5 372-373
+packages/client/src/components/DelegationIndicator.tsx
+  881354d889d76cc5 1-60
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.5",
+  "base_commit_sha": "b6b433ac33d957edfb47e8dbc3762e403a59643a",
+  "prompts": {
+    "7c9eec6cd916ccbc": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "215fb211-7b5c-43f0-ba9a-5c477c4f282b",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Matt Ferrante <matt@heyferrante.com>",
+      "messages": [],
+      "total_additions": 38,
+      "total_deletions": 8,
+      "accepted_lines": 38,
+      "overriden_lines": 0
+    },
+    "881354d889d76cc5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "326dab3f-9c2d-4802-8487-cbac5d0706ca",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Matt Ferrante <matt@heyferrante.com>",
+      "messages": [],
+      "total_additions": 288,
+      "total_deletions": 35,
+      "accepted_lines": 281,
+      "overriden_lines": 0
+    },
+    "9f7dc8fa617e8684": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fb9f7c90-0822-4714-876c-658c56b1e5af",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Matt Ferrante <matt@heyferrante.com>",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 20,
+      "overriden_lines": 0
+    },
+    "ca6cf546ebc53094": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019c97fa-70b2-7b22-93f8-4799b8c18dc1",
+        "model": "gpt-5.2-codex"
+      },
+      "human_author": "Matt Ferrante <matt@heyferrante.com>",
+      "messages": [],
+      "total_additions": 9,
+      "total_deletions": 159,
+      "accepted_lines": 9,
+      "overriden_lines": 0
+    }
+  }
+}
