@@ -124,7 +124,7 @@ importers:
   packages/client:
     dependencies:
       '@chaaskit/shared':
-        specifier: ^0.1.9
+        specifier: ^0.1.10
         version: link:../shared
       lucide-react:
         specifier: ^0.321.0
@@ -235,10 +235,10 @@ importers:
         specifier: ^3.989.0
         version: 3.989.0
       '@chaaskit/db':
-        specifier: ^0.1.9
+        specifier: ^0.1.10
         version: link:../db
       '@chaaskit/shared':
-        specifier: ^0.1.9
+        specifier: ^0.1.10
         version: link:../shared
       '@modelcontextprotocol/sdk':
         specifier: ^1.0.0
