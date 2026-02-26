@@ -1,5 +1,16 @@
 # @chaaskit/server
 
+## 0.1.10
+
+### Patch Changes
+
+- 9adcdbb: Team chats can be shared or private
+- 9adcdbb: Subagent delegation
+- Updated dependencies [9adcdbb]
+- Updated dependencies [9adcdbb]
+  - @chaaskit/db@0.1.10
+  - @chaaskit/shared@0.1.10
+
 ## 0.1.9
 
 ### Patch Changes
